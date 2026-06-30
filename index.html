@@ -233,10 +233,10 @@ input::placeholder{color:var(--txt3)}
 .input,.select,textarea{width:100%;min-width:0;background:var(--s1);border:1px solid var(--line);border-radius:12px;padding:12px 13px;font-size:14px;outline:none;transition:border-color .15s;box-sizing:border-box}
 .input:focus,.select:focus,textarea:focus{border-color:var(--accent)}
 .select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%238A7560'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:34px}
-.field-2{display:grid;grid-template-columns:1fr 1fr;gap:11px;min-width:0}
+.field-2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:11px;min-width:0}
 .field-2>.field{min-width:0}
 /* Inputs date/month natifs : jamais de debordement, icone calendrier reduite */
-input[type="date"],input[type="month"]{min-width:0;max-width:100%;box-sizing:border-box}
+input[type="date"],input[type="month"]{-webkit-appearance:none;appearance:none;width:100%;min-width:0;max-width:100%;box-sizing:border-box}
 input[type="date"]::-webkit-calendar-picker-indicator,input[type="month"]::-webkit-calendar-picker-indicator{font-size:12px;margin-left:2px}
 .btn{width:100%;border:0;border-radius:13px;padding:14px;font-weight:600;font-size:15px;cursor:pointer;margin-top:6px;background:linear-gradient(135deg,var(--accent),var(--accent-dk));color:#FFFBF2;box-shadow:0 6px 16px -8px rgba(154,96,40,.6)}
 .btn:active{transform:scale(.98)}
@@ -2010,7 +2010,8 @@ function saveRevenu(){
   if(!$('#f_desc').value.trim()) return toast('La description est obligatoire','err');
   if(!$('#f_date').value) return toast('La date est obligatoire','err');
   if(montant<=0) return toast('Le montant doit être positif','err');
-  const data={date:$('#f_date').value,description:$('#f_desc').value.trim(),categorie:$('#f_cat').value,montant,frequence:$('#f_freq').value,compte:$('#f_compte').value,valide:$('#f_val').value==='Oui',notes:$('#f_notes').value};
+  const ab=readAmtBase('f_montant');
+  const data={date:$('#f_date').value,description:$('#f_desc').value.trim(),categorie:$('#f_cat').value,montant:ab.montant,devise:ab.devise,taux:ab.taux,frequence:$('#f_freq').value,compte:$('#f_compte').value,valide:$('#f_val').value==='Oui',notes:$('#f_notes').value};
   if(editingId){ Object.assign(S.revenus.find(x=>x.id===editingId),data); toast('Revenu modifié','ok'); }
   else { S.revenus.push({id:uid(),...data}); toast('Revenu ajouté','ok'); }
   save(); closeSheet(); renderAll();
@@ -2020,7 +2021,8 @@ function saveDepense(){
   if(!$('#d_desc').value.trim()) return toast('La description est obligatoire','err');
   if(!$('#d_date').value) return toast('La date est obligatoire','err');
   if(montant<=0) return toast('Le montant doit être positif','err');
-  const data={date:$('#d_date').value,description:$('#d_desc').value.trim(),categorie:$('#d_cat').value,sousCategorie:$('#d_sub').value,montant,modePaiement:$('#d_pay').value,statut:$('#d_stat').value,priorite:$('#d_pri').value,compte:$('#d_compte').value,recurrent:$('#d_rec').checked,notes:$('#d_notes').value};
+  const ab=readAmtBase('d_montant');
+  const data={date:$('#d_date').value,description:$('#d_desc').value.trim(),categorie:$('#d_cat').value,sousCategorie:$('#d_sub').value,montant:ab.montant,devise:ab.devise,taux:ab.taux,modePaiement:$('#d_pay').value,statut:$('#d_stat').value,priorite:$('#d_pri').value,compte:$('#d_compte').value,recurrent:$('#d_rec').checked,notes:$('#d_notes').value};
   if(editingId){ Object.assign(S.depenses.find(x=>x.id===editingId),data); toast('Dépense modifiée','ok'); }
   else { S.depenses.push({id:uid(),...data}); toast('Dépense ajoutée','ok'); }
   save(); closeSheet(); renderAll();
