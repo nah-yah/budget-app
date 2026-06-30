@@ -1,0 +1,17 @@
+{
+  "name": "Budget · Noisette",
+  "short_name": "Budget",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#F4EAD8",
+  "theme_color": "#F4EAD8",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

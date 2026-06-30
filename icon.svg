@@ -1,0 +1,45 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="tg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A06A40"/><stop offset="1" stop-color="#6E4527"/></linearGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#B07A4F"/><stop offset="1" stop-color="#87583A"/></linearGradient>
+    <linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C18A5C"/><stop offset="1" stop-color="#9B6539"/></linearGradient>
+    <linearGradient id="blg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F2DCBA"/><stop offset="1" stop-color="#E6C9A0"/></linearGradient>
+  </defs>
+  <!-- queue -->
+  <ellipse cx="150" cy="104" rx="33" ry="62" transform="rotate(26 150 104)" fill="url(#tg)"/>
+  <ellipse cx="150" cy="104" rx="20" ry="48" transform="rotate(26 150 104)" fill="#E6C9A0" opacity=".5"/>
+  <!-- pieds -->
+  <ellipse cx="84" cy="178" rx="16" ry="9" fill="#6E4527"/>
+  <ellipse cx="118" cy="178" rx="16" ry="9" fill="#6E4527"/>
+  <!-- corps -->
+  <ellipse cx="100" cy="138" rx="47" ry="44" fill="url(#bg)"/>
+  <ellipse cx="100" cy="146" rx="30" ry="30" fill="url(#blg)"/>
+  <!-- tête -->
+  <circle cx="100" cy="80" r="48" fill="url(#hg)"/>
+  <!-- houpette fiere (allure noble) -->
+  <path d="M96 34 C90 20, 104 14, 108 28 C112 18, 120 22, 112 36 Z" fill="url(#hg)"/>
+  <!-- oreilles -->
+  <circle cx="67" cy="45" r="15" fill="url(#hg)"/><circle cx="68" cy="47" r="8.5" fill="#E6C9A0"/>
+  <circle cx="133" cy="45" r="15" fill="url(#hg)"/><circle cx="132" cy="47" r="8.5" fill="#E6C9A0"/>
+  <!-- museau -->
+  <ellipse cx="100" cy="92" rx="26" ry="20" fill="#F2DCBA"/>
+  <g><circle cx="86" cy="80" r="8.5" fill="#3A2A1C"/><circle cx="114" cy="80" r="8.5" fill="#3A2A1C"/><circle cx="89" cy="77" r="2.8" fill="#fff"/><circle cx="117" cy="77" r="2.8" fill="#fff"/></g>
+  <!-- joues -->
+  <circle cx="75" cy="92" r="6.5" fill="#E29A78" opacity=".55"/>
+  <circle cx="125" cy="92" r="6.5" fill="#E29A78" opacity=".55"/>
+  <!-- nez + bouche -->
+  <ellipse cx="100" cy="89" rx="4.2" ry="3.2" fill="#5A3A24"/>
+  <path d="M92 99 Q100 106 108 99" stroke="#5A3A24" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+  <!-- col & cravate dapper (fiere allure) -->
+  <g transform="translate(100 121)">
+    <path d="M-22 -3 Q0 6 22 -3 L16 7 Q0 14 -16 7 Z" fill="#FBF6EC"/>
+    <polygon points="0,-4 -7,13 7,13" fill="#C08017"/>
+    <polygon points="0,-4 -12,-10 -6,1 0,-2 6,1 12,-10" fill="#2F8B8D"/>
+    <circle cx="0" cy="-2" r="3.2" fill="#E0A458"/>
+  </g>
+  <!-- mains -->
+  <ellipse cx="72" cy="140" rx="11" ry="13" fill="#87583A"/>
+  <ellipse cx="128" cy="140" rx="11" ry="13" fill="#87583A"/>
+  <!-- gland / noisette -->
+  <g transform="translate(100 142)"><ellipse cx="0" cy="0" rx="12" ry="14" fill="#C9876B"/><path d="M-12 -2 Q0 6 12 -2" stroke="#87583A" stroke-width="2" fill="none"/></g>
+</svg>
