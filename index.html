@@ -1168,7 +1168,7 @@ function curSelChange(sel){
   curPreview(r);
 }
 function curPreview(rateInp){
-  const wrap=rateInp.parentElement;
+  const wrap=rateInp.closest('.cur-rate');
   const base=wrap.dataset.base||acctCur(), fmtFn=base===savCur()?fmtS:fmt;
   const amtId=wrap.dataset.amt, amtEl=$('#'+amtId), amt=num(amtEl?amtEl.value:0), rate=num(rateInp.value)||0;
   const out=wrap.querySelector('.cur-out'); if(out) out.textContent=fmtFn(amt*rate);
