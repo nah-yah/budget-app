@@ -227,13 +227,17 @@ input::placeholder{color:var(--txt3)}
 .sheet-head h2{font-size:16px;margin:0;font-weight:600}
 .close-btn{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--s1);color:var(--txt2);cursor:pointer}
 .sheet-body{padding:16px 18px 22px;overflow-y:auto;-webkit-overflow-scrolling:touch}
-.field{margin-bottom:13px}
+.field{margin-bottom:13px;min-width:0}
 .field label{display:block;font-size:12px;color:var(--txt2);margin-bottom:6px;font-weight:500}
 .field label .req{color:var(--bad)}
-.input,.select,textarea{width:100%;background:var(--s1);border:1px solid var(--line);border-radius:12px;padding:12px 13px;font-size:14px;outline:none;transition:border-color .15s}
+.input,.select,textarea{width:100%;min-width:0;background:var(--s1);border:1px solid var(--line);border-radius:12px;padding:12px 13px;font-size:14px;outline:none;transition:border-color .15s;box-sizing:border-box}
 .input:focus,.select:focus,textarea:focus{border-color:var(--accent)}
 .select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%238A7560'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:34px}
-.field-2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.field-2{display:grid;grid-template-columns:1fr 1fr;gap:11px;min-width:0}
+.field-2>.field{min-width:0}
+/* Inputs date/month natifs : jamais de debordement, icone calendrier reduite */
+input[type="date"],input[type="month"]{min-width:0;max-width:100%;box-sizing:border-box}
+input[type="date"]::-webkit-calendar-picker-indicator,input[type="month"]::-webkit-calendar-picker-indicator{font-size:12px;margin-left:2px}
 .btn{width:100%;border:0;border-radius:13px;padding:14px;font-weight:600;font-size:15px;cursor:pointer;margin-top:6px;background:linear-gradient(135deg,var(--accent),var(--accent-dk));color:#FFFBF2;box-shadow:0 6px 16px -8px rgba(154,96,40,.6)}
 .btn:active{transform:scale(.98)}
 .btn.ghost{background:var(--s1);color:var(--txt2);border:1px solid var(--line)}
