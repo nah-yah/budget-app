@@ -125,9 +125,10 @@ input::placeholder{color:var(--txt3)}
 .kpi .sub{font-size:11px;color:var(--txt3);margin-top:3px}
 .kpi.pos .val{color:var(--good)} .kpi.neg .val{color:var(--bad)} .kpi.acc .val{color:var(--accent-lt)}
 
-/* ===== item-card ===== */
-.item-card{background:linear-gradient(180deg,var(--s1),var(--s2));border:1px solid var(--line);border-radius:15px;padding:13px;margin-bottom:9px;cursor:pointer;transition:transform .12s, border-color .12s;position:relative}
-.item-card:active{transform:scale(.985);border-color:var(--accent-dk)}
+/* ===== item-card : lignes séparées par des filets (plus de cartes) ===== */
+.item-card{padding:13px 4px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .12s;position:relative}
+.item-card:last-child{border-bottom:0}
+.item-card:active{background:var(--s1)}
 .item-card.cancelled{opacity:.45}
 .item-card.planned{opacity:.74}
 .ic-top{display:flex;align-items:center;gap:11px}
@@ -197,14 +198,15 @@ input::placeholder{color:var(--txt3)}
 .subtabs{display:flex;background:var(--s1);border:1px solid var(--line);border-radius:13px;padding:4px;margin-bottom:13px}
 .subtab{flex:1;border:0;background:transparent;color:var(--txt2);padding:9px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer}
 .subtab.active{background:linear-gradient(135deg,var(--accent),var(--accent-dk));color:#FFFBF2}
-.b-table{display:flex;flex-direction:column;gap:7px}
-.b-row{display:flex;align-items:center;gap:10px;background:var(--s1);border:1px solid var(--line2);border-radius:12px;padding:10px 12px}
+.b-table{display:flex;flex-direction:column}
+.b-row{display:flex;align-items:center;gap:10px;padding:12px 2px;border-bottom:1px solid var(--line)}
+.b-row:last-child{border-bottom:0}
 .b-row .b-cat{flex:1;font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px}
 .b-row .b-cat i{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;font-size:10px}
 .b-row .b-nums{text-align:right;font-size:11px;color:var(--txt3);min-width:92px}
 .b-row .b-nums .real{font-family:'Space Grotesk';font-weight:600;color:var(--txt);font-size:12.5px}
 .b-row .b-nums .gap{font-weight:600}
-.b-row.total{background:var(--s3);border-color:var(--line)}
+.b-row.total{border-bottom:0;margin-top:4px}
 .b-row.total .b-cat{font-weight:700}
 
 /* ===== bottom nav ===== */
@@ -225,7 +227,7 @@ input::placeholder{color:var(--txt3)}
 /* ===== bottom sheet ===== */
 .sheet-backdrop{position:fixed;inset:0;background:rgba(58,42,28,.45);backdrop-filter:blur(3px);opacity:0;visibility:hidden;transition:opacity .28s;z-index:60}
 .sheet-backdrop.open{opacity:1;visibility:visible}
-.sheet{position:fixed;left:0;right:0;bottom:0;z-index:61;max-height:92dvh;display:flex;flex-direction:column;
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:61;height:96dvh;max-height:96dvh;display:flex;flex-direction:column;
   background:linear-gradient(180deg,var(--s2),var(--bg));
   border:1px solid var(--line);border-bottom:0;
   border-radius:24px 24px 0 0;
@@ -236,7 +238,7 @@ input::placeholder{color:var(--txt3)}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;padding:6px 18px 12px;border-bottom:1px solid var(--line2)}
 .sheet-head h2{font-size:16px;margin:0;font-weight:600}
 .close-btn{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--s1);color:var(--txt2);cursor:pointer}
-.sheet-body{padding:16px 18px 22px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sheet-body{padding:16px 18px 22px;overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;min-height:0}
 .field{margin-bottom:13px;min-width:0}
 .field label{display:block;font-size:12px;color:var(--txt2);margin-bottom:6px;font-weight:500}
 .field label .req{color:var(--bad)}
@@ -252,12 +254,14 @@ input[type="date"]::-webkit-calendar-picker-indicator,input[type="month"]::-webk
 .btn:active{transform:scale(.98)}
 .btn.ghost{background:var(--s1);color:var(--txt2);border:1px solid var(--line)}
 .btn.danger{background:rgba(217,119,87,.14);color:var(--bad);border:1px solid rgba(217,119,87,.3)}
-.opt-row{display:flex;align-items:center;gap:12px;padding:14px;background:var(--s1);border:1px solid var(--line);border-radius:13px;margin-bottom:9px;cursor:pointer}
-.opt-row:active{background:var(--s3)}
+.opt-row{display:flex;align-items:center;gap:13px;padding:14px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.opt-row:last-child{border-bottom:0}
+.opt-row:active{background:var(--s1)}
 .opt-row i.oi{width:38px;height:38px;border-radius:11px;background:var(--s3);display:grid;place-items:center;color:var(--accent);font-size:14px;flex:none}
+.opt-row>div{flex:1;min-width:0}
 .opt-row .ot{font-weight:600;font-size:14px}
 .opt-row .od{font-size:11.5px;color:var(--txt3)}
-.opt-row i.fa-chevron{margin-left:auto;color:var(--txt3);font-size:11px}
+.opt-row i.fa-chevron-right{margin-left:auto;color:var(--txt3);font-size:12px;flex:none}
 .switch{position:relative;width:46px;height:27px;flex:none}
 .switch input{opacity:0;width:0;height:0}
 .switch .sl{position:absolute;inset:0;background:var(--s4);border-radius:99px;transition:.2s}
@@ -296,12 +300,13 @@ input[type="date"]::-webkit-calendar-picker-indicator,input[type="month"]::-webk
 @keyframes flk{0%,100%{transform:scale(1) rotate(-4deg)}50%{transform:scale(1.2) rotate(4deg)}}
 
 /* ===== Balance items (soldes des comptes) : nom en haut, montant en bas ===== */
-.bal-item{display:flex;flex-direction:column;gap:7px;background:var(--s1);border:1px solid var(--line);border-radius:12px;padding:11px 12px;text-align:left}
-.bal-top{display:flex;align-items:center;gap:8px;min-width:0}
-.bal-top .ai{width:30px;height:30px;border-radius:9px;background:var(--s3);color:var(--accent);display:grid;place-items:center;font-size:12px;flex:none}
-.bal-top .an{font-size:12px;font-weight:600;color:var(--txt2);line-height:1.2;min-width:0}
-.bal-amt{font-family:'Space Grotesk';font-weight:700;font-size:16px;line-height:1.1;word-break:break-word}
-.bal-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:9px}
+.bal-item{display:flex;align-items:center;gap:10px;padding:12px 2px;border-bottom:1px solid var(--line);text-align:left}
+.bal-item:last-child{border-bottom:0}
+.bal-top{display:flex;align-items:center;gap:9px;min-width:0;flex:1}
+.bal-top .ai{width:32px;height:32px;border-radius:9px;background:var(--s3);color:var(--accent);display:grid;place-items:center;font-size:12px;flex:none}
+.bal-top .an{font-size:13px;font-weight:600;color:var(--txt2);line-height:1.2;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bal-amt{font-family:'Space Grotesk';font-weight:700;font-size:16px;line-height:1.1;flex:none;margin-left:auto}
+.bal-grid{display:flex;flex-direction:column}
 
 /* ===== Daily budget bar ===== */
 .daily-bar{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,var(--s3),var(--s2));border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:13px}
@@ -460,8 +465,8 @@ input[type="date"]::-webkit-calendar-picker-indicator,input[type="month"]::-webk
   /* Dashboard : les cartes s'enchainent naturellement dans la grille fluide (aucune zone forcee) */
   .tab.active > .cal-card{ grid-column:1 / -1; }
   .alert-card{ margin-bottom:0; }
-  /* Soldes des comptes : rangees en grille 2-3 colonnes */
-  .bal-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap:9px; }
+  /* Soldes des comptes : liste en lignes avec filets */
+  .bal-grid{ display:flex; flex-direction:column; }
 
   /* Listes revenus / depenses sur 2-3 colonnes */
   #revenusList, #depensesList{
@@ -480,7 +485,7 @@ input[type="date"]::-webkit-calendar-picker-indicator,input[type="month"]::-webk
   .sheet-backdrop{ display:flex; align-items:center; justify-content:center; }
   .sheet{
     position:fixed; left:50%; right:auto; top:50%; bottom:auto;
-    width:calc(100% - 48px); max-width:680px; max-height:88dvh;
+    width:calc(100% - 48px); max-width:720px; height:92dvh; max-height:92dvh;
     border:1px solid var(--line); border-radius:22px;
     transform:translate(-50%,-50%) scale(.96); opacity:0;
     transition:transform .28s cubic-bezier(.2,.85,.25,1), opacity .28s;
@@ -547,7 +552,7 @@ input[type="date"]::-webkit-calendar-picker-indicator,input[type="month"]::-webk
       </div>
       <div class="month-sel">
         <button id="prevMonth" aria-label="Mois précédent"><i class="fa-solid fa-chevron-left"></i></button>
-        <div class="month-box"><div class="m" id="monthLabel">—</div><div class="y" id="yearLabel"></div></div>
+        <div class="month-box"><div class="m" id="monthLabel"></div><div class="y" id="yearLabel"></div></div>
         <button id="nextMonth" aria-label="Mois suivant"><i class="fa-solid fa-chevron-right"></i></button>
       </div>
     </header>
@@ -800,21 +805,23 @@ function totalNet(){ const b=accountBalances(); return Object.keys(b).reduce((s,
    Projeté = tout ce qui n'est pas annulé (inclut le prévu non encore validé/payé). */
 function isConfirmedRev(r){ return r.valide!==false; }
 function isConfirmedDep(d){ return d.statut==='Payé'; }
-/* Checking "du mois" : flux net du Compte courant SUR la période. confirmed=true => uniquement le réel. */
+/* "Disponible du mois" : flux net sur TOUS les comptes de dépense (hors épargne) sur la période.
+   Inclut donc MonCash/Espèces/etc., et soustrait les virements vers l'épargne. confirmed=true => uniquement le réel. */
+function isSpendingAccount(c){ return !isSavingsAccount(c); }
 function checkingPeriodNet(ym,confirmed){
   let net=0;
-  S.revenus.forEach(r=>{ if(r.compte==='Compte courant' && inPeriod(r,ym) && (!confirmed||isConfirmedRev(r))) net+=num(r.montant); });
-  S.depenses.forEach(d=>{ if(d.compte==='Compte courant' && d.statut!=='Annulé' && inPeriod(d,ym) && (!confirmed||isConfirmedDep(d))) net-=num(d.montant); });
-  (S.transferts||[]).forEach(t=>{ if(inPeriod(t,ym)){ if(t.deCompte==='Compte courant') net-=num(t.montant); if(t.versCompte==='Compte courant') net+=num(t.montant); } });
+  S.revenus.forEach(r=>{ if(isSpendingAccount(r.compte) && inPeriod(r,ym) && (!confirmed||isConfirmedRev(r))) net+=num(r.montant); });
+  S.depenses.forEach(d=>{ if(isSpendingAccount(d.compte) && d.statut!=='Annulé' && inPeriod(d,ym) && (!confirmed||isConfirmedDep(d))) net-=num(d.montant); });
+  (S.transferts||[]).forEach(t=>{ if(inPeriod(t,ym)){ const fs=isSpendingAccount(t.deCompte), ts=isSpendingAccount(t.versCompte); if(fs&&!ts) net-=num(t.montant); else if(!fs&&ts) net+=num(t.montant); } });
   return Math.round(net*100)/100;
 }
-/* Checking "avec report" : solde cumulé du Compte courant jusqu'à la FIN de la période. confirmed=true => réel. */
+/* "Disponible avec report" : solde cumulé des comptes de dépense jusqu'à la FIN de la période. confirmed=true => réel. */
 function checkingCarryover(ym,confirmed){
   const end=periodRange(ym).end;
-  let bal=(S.comptes&&S.comptes['Compte courant'])?num(S.comptes['Compte courant']):0;
-  S.revenus.forEach(r=>{ if(r.compte==='Compte courant' && (r.date||'')<end && (!confirmed||isConfirmedRev(r))) bal+=num(r.montant); });
-  S.depenses.forEach(d=>{ if(d.compte==='Compte courant' && d.statut!=='Annulé' && (d.date||'')<end && (!confirmed||isConfirmedDep(d))) bal-=num(d.montant); });
-  (S.transferts||[]).forEach(t=>{ if((t.date||'')<end){ if(t.deCompte==='Compte courant') bal-=num(t.montant); if(t.versCompte==='Compte courant') bal+=num(t.montant); } });
+  let bal=0; Object.keys(COMPTES).forEach(c=>{ if(isSpendingAccount(c)) bal+=(S.comptes&&S.comptes[c])?num(S.comptes[c]):0; });
+  S.revenus.forEach(r=>{ if(isSpendingAccount(r.compte) && (r.date||'')<end && (!confirmed||isConfirmedRev(r))) bal+=num(r.montant); });
+  S.depenses.forEach(d=>{ if(isSpendingAccount(d.compte) && d.statut!=='Annulé' && (d.date||'')<end && (!confirmed||isConfirmedDep(d))) bal-=num(d.montant); });
+  (S.transferts||[]).forEach(t=>{ if((t.date||'')<end){ const fs=isSpendingAccount(t.deCompte), ts=isSpendingAccount(t.versCompte); if(fs&&!ts) bal-=num(t.montant); else if(!fs&&ts) bal+=num(t.montant); } });
   return Math.round(bal*100)/100;
 }
 /* Ce qui restait à la fin de la période précédente (= report entrant). */
@@ -1036,9 +1043,9 @@ function myTurn(id){
   const today=todayISO();
   const date=inPeriod({date:today},S.currentMonth)?today:periodRange(S.currentMonth).start; // dans la période affichée
   const rc=RC['Autre revenu']?'Autre revenu':Object.keys(RC)[0];
-  S.revenus.push({id:uid(),date:date,description:'Tontine — mon tour'+(e.nom&&e.nom!=='Tontine'?' ('+e.nom+')':''),categorie:rc,montant:amt,devise:acctCur(),taux:1,frequence:'Unique',compte:'Compte courant',valide:true,notes:'',tontineId:id});
+  S.revenus.push({id:uid(),date:date,description:'Tontine - mon tour'+(e.nom&&e.nom!=='Tontine'?' ('+e.nom+')':''),categorie:rc,montant:amt,devise:acctCur(),taux:1,frequence:'Unique',compte:'Compte courant',valide:true,notes:'',tontineId:id});
   e.tourPris=true;
-  save(); renderAll(); toast('Ton tour ! '+fmt(amt)+' ajouté aux revenus (Autre revenu). Checking mis à jour.','ok');
+  save(); renderAll(); toast('Ton tour ! '+fmt(amt)+' ajouté aux revenus (Autre revenu). Solde mis à jour.','ok');
 }
 /* Annuler un tour pris par erreur : retire le revenu "mon tour" (et un éventuel ancien virement) + enleve le badge. */
 function undoMyTurn(id){
@@ -1048,7 +1055,7 @@ function undoMyTurn(id){
   let tidx=-1; (S.transferts||[]).forEach((t,i)=>{ if(t.epargneId===id && t.description==='Tontine - mon tour') tidx=i; }); // compat ancien format
   if(tidx>=0) S.transferts.splice(tidx,1);
   e.tourPris=false;
-  save(); renderAll(); toast('Tour annulé — revenu retiré et badge « Tour pris » enlevé','info');
+  save(); renderAll(); toast('Tour annulé : revenu retiré et badge « Tour pris » enlevé','info');
 }
 function setTransType(t){
   $('#t_amountType').value=t;
@@ -1111,8 +1118,23 @@ function spentByCat(){
   const map={}; getD().forEach(d=>{ const k=d.categorie||'Autres dépenses'; map[k]=(map[k]||0)+num(d.montant); }); return map;
 }
 
+/* ===== Budget enveloppe : report du non-dépensé d'une période à l'autre ===== */
+function baseBudget(cat){ const b=S.budgets.find(x=>x.categorie===cat); return b?num(b.montant):0; }
+function spentInPeriod(cat,ym){ let s=0; S.depenses.forEach(d=>{ if(d.categorie===cat && d.statut!=='Annulé' && inPeriod(d,ym)) s+=num(d.montant); }); return s; }
+/* Report d'enveloppe = cumul (budget de base − dépensé) sur les périodes ACTIVES précédentes (borné à 24). */
+function envelopeCarryIn(cat,ym){
+  if(!S.envelopeMode) return 0;
+  const base=baseBudget(cat); let carry=0;
+  for(let i=1;i<=24;i++){ const p=monthOffset(ym,-i);
+    if(S.depenses.some(d=>d.statut!=='Annulé'&&inPeriod(d,p))) carry+=base-spentInPeriod(cat,p);
+  }
+  return Math.round(carry*100)/100;
+}
+/* Budget disponible pour la période affichée : base + report (si enveloppe activée). */
+function budgetFor(cat){ return Math.round((baseBudget(cat)+envelopeCarryIn(cat,S.currentMonth))*100)/100; }
+
 /* --- Budget global, journalier & série (streak) --- */
-function totalBudget(){ return S.budgets.reduce((s,b)=>s+num(b.montant),0); }
+function totalBudget(){ return Object.keys(CC).reduce((s,c)=>s+budgetFor(c),0); }
 function daysInMonth(ym){ const [y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate(); }
 /* Nombre de jours de la période (suit les bornes réelles, pas le mois calendaire). */
 function periodDays(ym){ const r=periodRange(ym); return Math.max(1, Math.round((isoToDate(r.end)-isoToDate(r.start))/86400000)); }
@@ -1131,7 +1153,7 @@ function dayDetail(ds){
   const sp=dailySpend(ds), db=dailyBudget();
   if(sp<=0) return toast(`${fmtDate(ds)} : aucune dépense`,'info');
   const over=db>0&&sp>db;
-  toast(`${fmtDate(ds)} : ${fmt(sp)}${over?' · dépasse l\'objectif':' · sous le budget'}`,over?'err':'ok');
+  toast(`${fmtDate(ds)} : ${fmt(sp)}${over?', dépasse l\'objectif':', sous le budget'}`,over?'err':'ok');
 }
 function calendarCard(){
   const ym=S.currentMonth, db=dailyBudget();
@@ -1236,7 +1258,7 @@ const CUR={
  'CRC':{sym:'₡',rate:0.00175,pre:false,flag:'🇨🇷',name:'Colón costaricain',region:'Amérique latine & Caraïbes'},
  'PAB':{sym:'B/.',rate:0.92,pre:false,flag:'🇵🇦',name:'Balboa',region:'Amérique latine & Caraïbes'},
  'DOP':{sym:'$',rate:0.0153,pre:true,flag:'🇩🇴',name:'Peso dominicain',region:'Amérique latine & Caraïbes'},
- 'HTG':{sym:'G',rate:0.0069,pre:false,flag:'🇭🇹',name:'Gourde haïtienne',region:'Amérique latine & Caraïbes'},
+ 'HTG':{sym:'G',rate:0.006814814814814815,pre:false,flag:'🇭🇹',name:'Gourde haïtienne',region:'Amérique latine & Caraïbes'},
  'CUP':{sym:'$',rate:0.0385,pre:true,flag:'🇨🇺',name:'Peso cubain',region:'Amérique latine & Caraïbes'},
  'JMD':{sym:'$',rate:0.0059,pre:true,flag:'🇯🇲',name:'Dollar jamaïcain',region:'Amérique latine & Caraïbes'},
  'TTD':{sym:'$',rate:0.136,pre:true,flag:'🇹🇹',name:'Dollar de Trinité',region:'Amérique latine & Caraïbes'},
@@ -1347,7 +1369,7 @@ function currencyOptions(selected,withName){
     const codes=CUR_CODES.filter(c=>CUR[c].region===reg);
     if(!codes.length) return;
     html+='<optgroup label="'+reg+'">';
-    codes.forEach(c=>{ const d=CUR[c]; const lbl=withName?(c+' — '+d.name):c; html+='<option value="'+c+'" '+(c===selected?'selected':'')+'>'+lbl+'</option>'; });
+    codes.forEach(c=>{ const d=CUR[c]; const lbl=withName?(c+' - '+d.name):c; html+='<option value="'+c+'" '+(c===selected?'selected':'')+'>'+lbl+'</option>'; });
     html+='</optgroup>';
   });
   return html;
@@ -1420,7 +1442,7 @@ function converterHTML(){
       <div class="field" style="margin:0"><label>Montant</label><input type="number" step="0.01" inputmode="decimal" class="input" id="conv_amt" placeholder="0,00" oninput="updateConvert()"></div>
       <div class="field" style="margin:0"><label>Devise source</label><select class="select" id="conv_cur" onchange="setConvRate()">${currencyOptions('USD',true)}</select></div>
     </div>
-    <div class="conv-eq"><input type="number" step="0.0001" inputmode="decimal" class="input" id="conv_rate" value="${baseRateOf('USD')}" oninput="updateConvert()"><i class="fa-solid fa-arrow-right-arrow-left"></i><span style="font-size:11.5px;color:var(--txt3);min-width:70px">1 = ${bs}</span></div>
+    <div class="conv-eq"><input type="number" step="0.0001" inputmode="decimal" class="input" id="conv_rate" value="${+baseRateOf('USD').toFixed(4)}" oninput="updateConvert()"><i class="fa-solid fa-arrow-right-arrow-left"></i><span style="font-size:11.5px;color:var(--txt3);min-width:70px">1 = ${bs}</span></div>
     <div class="conv-out"><span style="font-size:12px;color:var(--txt2)">≈ ${bn}</span><span class="v" id="conv_out" data-val="0">0,00 ${bs}</span></div>
     <div style="font-size:10px;color:var(--txt3);margin-top:9px;line-height:1.4">Taux indicatifs hors ligne (modifiables). Vérifie le taux réel avant un achat important.</div>
   </div>`;
@@ -1432,7 +1454,7 @@ function updateConvert(){
   const out=amt*rate, o=$('#conv_out'), b=baseCur();
   if(o){ o.textContent=fmtCur(out,b); o.dataset.val=out; }
 }
-function setConvRate(){ const code=$('#conv_cur').value, r=$('#conv_rate'); if(r) r.value=baseRateOf(code); updateConvert(); }
+function setConvRate(){ const code=$('#conv_cur').value, r=$('#conv_rate'); if(r) r.value=+baseRateOf(code).toFixed(4); updateConvert(); }
 /* (anciennes fonctions useConvert / toggleConv supprimees : convertisseur integre remplace par le selecteur de devise natif) */
 
 /* =========================================================
@@ -1672,8 +1694,8 @@ function renderDashboard(){
   const epTotal=S.epargnes.reduce((s,e)=>s+goalActuel(e),0);
   const sb=spentByCat();
   const alerts=S.budgets.map(b=>{
-    const spent=sb[b.categorie]||0; const pct=b.montant>0?(spent/b.montant*100):0;
-    return {cat:b.categorie,budget:num(b.montant),spent,pct,cc:CC[b.categorie]||{color:'#A89580',icon:'ellipsis'}};
+    const spent=sb[b.categorie]||0; const bud=budgetFor(b.categorie); const pct=bud>0?(spent/bud*100):0;
+    return {cat:b.categorie,budget:bud,spent,pct,cc:CC[b.categorie]||{color:'#A89580',icon:'ellipsis'}};
   }).filter(a=>a.pct>=90);
   const streak=streakCount(), db=dailyBudget(), todaySp=spendToday();
   const isCurReal = S.currentMonth===currentPeriodKey(); // la période affichée contient-elle aujourd'hui ?
@@ -1690,7 +1712,7 @@ function renderDashboard(){
   else if(streak>=7) msg=`Série de feu ! ${streak} jours consécutifs sous le budget.`;
   else if(rate>=20) msg=`Bravo, tu épargnes ${rate.toFixed(0)}% de tes revenus.`;
   else if(streak>=3) msg=`Bien joué ! ${streak} jours sous le budget d'affilée.`;
-  else msg=`Checking : ${fmt(chk)}. Continue comme ça !`;
+  else msg=`Disponible : ${fmt(chk)}. Continue comme ça !`;
 
   const top5=getD().slice().sort((a,b)=>num(b.montant)-num(a.montant)).slice(0,5);
   const maxTop=top5.length?num(top5[0].montant):1;
@@ -1718,26 +1740,15 @@ function renderDashboard(){
         </div>
       </div>
     </div>
-    ${isCurReal?`<div class="daily-bar">
-      <div class="db-ico"><i class="fa-solid fa-calendar-day"></i></div>
-      <div class="db-body">
-        <div class="db-lbl">Aujourd'hui · objectif ${fmt(db)}/jour</div>
-        <div class="progress" style="margin-top:7px"><div class="progress-bar" style="width:${Math.min(100,db>0?todaySp/db*100:0)}%;background:${todaySp>db&&db>0?'var(--bad)':'var(--accent)'}"></div></div>
-      </div>
-      <div style="text-align:right;flex:none">
-        <div class="db-lbl">Dépensé</div>
-        <div class="db-val" style="color:${todaySp>db&&db>0?'var(--bad)':'var(--accent-lt)'}">${fmt(todaySp)}</div>
-        <div class="db-left">${todaySp<=db?'reste '+fmt(Math.max(0,db-todaySp)):'dépasse '+fmt(todaySp-db)}</div>
-      </div>
-    </div>`:''}
     <div class="kpi-grid">
       ${kpiCard('Revenus','arrow-trend-up','#8FB573',fmt(R),`${getR().length} entrée(s)`,'pos')}
-      ${kpiCard('Checking du mois','wallet','#D4A574',(chkNet>=0?'+':'')+fmt(chkNet),`Solde : ${fmt(chkCarry)}`,chkNet>=0?'acc':'neg')}
+      ${kpiCard('Disponible du mois','wallet','#D4A574',(chkNet>=0?'+':'')+fmt(chkNet),`Solde : ${fmt(chkCarry)}`,chkNet>=0?'acc':'neg')}
       ${kpiCard('Dépenses','arrow-trend-down','#D97757',fmt(D),`${getD().length} dépense(s)`,'neg')}
       ${kpiCard('Épargné ce mois','piggy-bank','#8B6F47',fmt(transfersToSavings()),`${S.epargnes.length} objectif(s)`,'pos')}
     </div>
-    <div class="card" style="background:linear-gradient(135deg,var(--s1),var(--s2))">
-      <h3 style="margin-bottom:12px"><i class="fa-solid fa-wallet"></i>Checking · ${periodLabelRange(S.currentMonth)}</h3>
+    <div class="card">
+      <h3 style="margin-bottom:12px"><i class="fa-solid fa-wallet"></i>Disponible · ${periodLabelRange(S.currentMonth)}</h3>
+      <div style="font-size:10.5px;color:var(--txt3);margin:-8px 0 10px">Tous tes comptes de dépense (hors épargne)</div>
       <div style="display:flex;align-items:stretch;text-align:center">
         <div style="flex:1">
           <div style="font-size:11px;color:var(--txt2)">Report entrant</div>
@@ -1757,14 +1768,15 @@ function renderDashboard(){
           <div style="font-size:10px;color:var(--txt3)">projeté (tout)</div>
         </div>
       </div>
-      <div style="display:flex;gap:8px;margin-top:12px">
-        <div style="flex:1;background:var(--s2);border:1px solid var(--line);border-radius:11px;padding:9px 11px">
+      <div style="display:flex;align-items:stretch;text-align:center;margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+        <div style="flex:1">
           <div style="font-size:10.5px;color:var(--txt2)"><i class="fa-solid fa-circle-check" style="color:var(--good)"></i> Réel (validé / payé)</div>
-          <div style="font-family:'Space Grotesk';font-weight:700;font-size:15.5px;color:${chkReal>=0?'var(--txt)':'var(--bad)'}">${fmt(chkReal)}</div>
+          <div style="font-family:'Space Grotesk';font-weight:700;font-size:16px;color:${chkReal>=0?'var(--txt)':'var(--bad)'}">${fmt(chkReal)}</div>
         </div>
-        <div style="flex:1;background:var(--s2);border:1px solid var(--line);border-radius:11px;padding:9px 11px">
+        <div style="width:1px;background:var(--line);margin:2px 8px"></div>
+        <div style="flex:1">
           <div style="font-size:10.5px;color:var(--txt2)"><i class="fa-solid fa-hourglass-half" style="color:var(--warn)"></i> Projeté (tout inclus)</div>
-          <div style="font-family:'Space Grotesk';font-weight:700;font-size:15.5px;color:${chkCarry>=0?'var(--txt)':'var(--bad)'}">${fmt(chkCarry)}</div>
+          <div style="font-family:'Space Grotesk';font-weight:700;font-size:16px;color:${chkCarry>=0?'var(--txt)':'var(--bad)'}">${fmt(chkCarry)}</div>
         </div>
       </div>
     </div>
@@ -1777,7 +1789,7 @@ function renderDashboard(){
     </div>`:''}
     ${(function(){
       const bT=totalBudget(), spent=totalD(), rest=bT-spent, pct=bT>0?Math.min(100,spent/bT*100):0, over=spent>bT&&bT>0;
-      return `<div class="card" style="background:linear-gradient(135deg,var(--s1),var(--s2))">
+      return `<div class="card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
           <div><div style="font-size:12px;color:var(--txt2)">Budget du mois</div><div style="font-family:'Space Grotesk';font-weight:700;font-size:20px">${fmt(bT)}</div></div>
           <div style="text-align:right"><div style="font-size:12px;color:var(--txt2)">${over?'Dépassement':'Reste à dépenser'}</div><div style="font-family:'Space Grotesk';font-weight:700;font-size:20px;color:${over?'var(--bad)':'var(--good)'}">${fmt(Math.abs(rest))}</div></div>
@@ -1786,19 +1798,12 @@ function renderDashboard(){
         <div style="font-size:11px;color:var(--txt3);margin-top:8px">Dépensé ${fmt(spent)} / ${fmt(bT)} · ${Math.round(pct)}%</div>
       </div>`;
     })()}
-    ${calendarCard()}
     <div class="card">
       <h3><i class="fa-solid fa-chart-pie"></i>Répartition des dépenses</h3>
       <div class="ring-wrap"><canvas id="dashRing"></canvas>
         <div class="ring-center"><span class="rc-lbl">Dépenses</span><span class="rc-val">${fmt(totalExpensesPure())}</span></div>
       </div>
       <div id="dashLegend"></div>
-    </div>
-    <div class="card">
-      <h3><i class="fa-solid fa-ranking-star"></i>Top 5 dépenses</h3>
-      ${top5.length? top5.map(d=>{const cc=CC[d.categorie]||{color:'#A89580',icon:'ellipsis'};const w=Math.max(8,num(d.montant)/maxTop*100);return `
-        <div class="prog-row"><span class="nm"><i class="fa-solid fa-${cc.icon}" style="color:${cc.color}"></i>${esc(d.description)}</span><span class="pct">${fmt(d.montant)}</span></div>
-        <div class="progress" style="margin-bottom:10px"><div class="progress-bar" style="width:${w}%;background:${cc.color}"></div></div>`;}).join('') : emptyBox('Pas encore de dépense','receipt')}
     </div>
     <div class="card card-span">
       <h3><i class="fa-solid fa-chart-line"></i>Évolution sur 6 mois<span class="more">revenus / dépenses</span></h3>
@@ -1930,6 +1935,7 @@ function renderEpargne(){
           ?`<button class="btn ghost" style="margin:0;flex:1;padding:10px;font-size:12.5px;border-color:var(--warn);color:var(--warn)" onclick="undoMyTurn('${e.id}')"><i class="fa-solid fa-rotate-left"></i> Annuler le tour</button>`
           :`<button class="btn" style="margin:0;flex:1;padding:10px;font-size:12.5px;background:linear-gradient(135deg,var(--good),#6E9A52)" onclick="myTurn('${e.id}')"><i class="fa-solid fa-gift"></i> C'est mon tour</button>`):''}
       </div>
+      ${isTontine?`<div style="margin-top:8px" onclick="event.stopPropagation()"><button class="btn ghost" style="margin:0;width:100%;padding:9px;font-size:12px" onclick="openTontineSheet('${e.id}')"><i class="fa-solid fa-users-line"></i> Voir le cycle du sol</button></div>`:''}
     </div>`;
   }).join('') : emptyBox('Aucun objectif d\'épargne. Ajoutes-en un !','piggy-bank');
   // Virements
@@ -1949,7 +1955,125 @@ function renderEpargne(){
     <div class="section-title">Objectifs d'épargne <span style="float:right;font-weight:400;text-transform:none;color:var(--accent-lt);cursor:pointer" onclick="openSheet('epargne')">+ Ajouter</span></div>
     <div class="ep-list">${goalHtml}</div>
     <div class="section-title" style="margin-top:6px">Virements entre comptes <span style="float:right;font-weight:400;text-transform:none;color:var(--accent-lt);cursor:pointer" onclick="openSheet('transfert')">+ Virement</span></div>
-    <div class="ep-list">${transHtml||emptyBox('Aucun virement ce mois-ci','right-left')}</div>`;
+    <div class="ep-list">${transHtml||emptyBox('Aucun virement ce mois-ci','right-left')}</div>
+    ${dettesSection()}`;
+}
+/* ===== Dettes & prêts ===== */
+function dettesSection(){
+  const arr=S.dettes||[];
+  const du=arr.filter(x=>x.type==='dette'&&x.statut!=='remboursé').reduce((s,x)=>s+num(x.montant),0);
+  const prete=arr.filter(x=>x.type==='pret'&&x.statut!=='remboursé').reduce((s,x)=>s+num(x.montant),0);
+  const list=arr.slice().sort((a,b)=>{ const da=a.statut==='remboursé', db=b.statut==='remboursé'; if(da!==db) return da?1:-1; return (a.date<b.date)?1:-1; });
+  const rows=list.length? list.map(x=>{
+    const isDette=x.type==='dette', done=x.statut==='remboursé', col=isDette?'var(--bad)':'var(--good)';
+    return `<div class="item-card ${done?'cancelled':''}" onclick="openSheet('dette','${x.id}')">
+      <div class="ic-top">
+        <div class="ic-ico" style="background:${col}22;color:${col}"><i class="fa-solid fa-${isDette?'arrow-up-long':'arrow-down-long'}"></i></div>
+        <div class="ic-body"><div class="ic-desc">${esc(x.personne||'—')}${done?' <span style="font-size:10px;font-weight:600;color:var(--good)">remboursé</span>':''}</div>
+          <div class="ic-meta"><span>${isDette?'Tu dois':'On te doit'}</span>${x.dateEcheance&&!done?`<span>·</span><span style="color:var(--warn)">échéance ${fmtDate(x.dateEcheance)}</span>`:(x.date?`<span>·</span><span>${fmtDate(x.date)}</span>`:'')}${x.description?`<span>·</span><span>${esc(x.description)}</span>`:''}</div></div>
+        <div class="ic-amt" style="color:${done?'var(--txt3)':col};text-align:right">${amtLabel(x.montant,x.devise,x.taux)}</div>
+        <button class="ic-del" title="Supprimer" onclick="event.stopPropagation();askDeleteDette('${x.id}')"><i class="fa-solid fa-trash-can"></i></button>
+      </div>
+    </div>`;
+  }).join('') : emptyBox('Aucune dette ni prêt','handshake');
+  return `<div class="section-title" style="margin-top:6px">Dettes & prêts <span style="float:right;font-weight:400;text-transform:none;color:var(--accent-lt);cursor:pointer" onclick="openSheet('dette')">+ Ajouter</span></div>
+    <div class="card"><div style="display:flex;text-align:center">
+      <div style="flex:1"><div style="font-size:11px;color:var(--txt2)">Tu dois</div><div style="font-family:'Space Grotesk';font-weight:700;font-size:16px;color:var(--bad)">${fmt(du)}</div></div>
+      <div style="width:1px;background:var(--line);margin:2px 8px"></div>
+      <div style="flex:1"><div style="font-size:11px;color:var(--txt2)">On te doit</div><div style="font-family:'Space Grotesk';font-weight:700;font-size:16px;color:var(--good)">${fmt(prete)}</div></div>
+      <div style="width:1px;background:var(--line);margin:2px 8px"></div>
+      <div style="flex:1"><div style="font-size:11px;color:var(--txt2)">Solde net</div><div style="font-family:'Space Grotesk';font-weight:700;font-size:16px;color:${prete-du>=0?'var(--good)':'var(--bad)'}">${(prete-du>=0?'+':'')+fmt(prete-du)}</div></div>
+    </div></div>
+    <div class="ep-list">${rows}</div>`;
+}
+function detteForm(id){
+  const x=id?(S.dettes.find(y=>y.id===id)||{}):{};
+  const cur=x.devise||acctCur();
+  const dispAmt=(cur!==acctCur()&&x.taux>0)?(num(x.montant)/x.taux):(x.montant??'');
+  return `
+  <div class="field"><label>Type</label>
+    <select class="select" id="dt_type"><option value="dette" ${x.type!=='pret'?'selected':''}>Je dois (dette)</option><option value="pret" ${x.type==='pret'?'selected':''}>On me doit (prêt)</option></select>
+  </div>
+  <div class="field"><label>Personne <span class="req">*</span></label><input type="text" class="input" id="dt_personne" value="${esc(x.personne||'')}" placeholder="Ex. Marie, Jean…"></div>
+  <div class="field-2">
+    <div class="field"><label>Montant <span class="req">*</span></label><input type="number" step="0.01" inputmode="decimal" class="input" id="dt_montant" value="${dispAmt}" placeholder="0,00"></div>
+    <div class="field"><label>Devise</label><select class="select" id="dt_devise">${currencyOptions(cur,true)}</select></div>
+  </div>
+  <div class="field-2">
+    <div class="field"><label>Date</label><input type="date" class="input" id="dt_date" value="${x.date||todayISO()}"></div>
+    <div class="field"><label>Échéance</label><input type="date" class="input" id="dt_echeance" value="${x.dateEcheance||''}"></div>
+  </div>
+  <div class="field"><label>Statut</label>${selectArr('dt_statut',['En cours','Remboursé'],x.statut==='remboursé'?'Remboursé':'En cours')}</div>
+  <div class="field"><label>Note</label><input type="text" class="input" id="dt_desc" value="${esc(x.description||'')}" placeholder="Optionnel"></div>
+  <button class="btn" onclick="saveDette()"><i class="fa-solid fa-check"></i> Enregistrer</button>
+  ${id?`<button class="btn danger" onclick="askDeleteDette('${id}')"><i class="fa-solid fa-trash"></i> Supprimer</button>`:''}`;
+}
+function saveDette(){
+  const personne=($('#dt_personne').value||'').trim();
+  if(!personne) return toast('Indique la personne','err');
+  const rawAmt=num($('#dt_montant').value);
+  if(rawAmt<=0) return toast('Le montant doit être positif','err');
+  const dev=$('#dt_devise').value, taux=baseRateOf(dev,acctCur());
+  const montant=Math.round(rawAmt*taux*100)/100;
+  const data={type:$('#dt_type').value==='pret'?'pret':'dette',personne,montant,devise:dev,taux,
+    date:$('#dt_date').value,dateEcheance:$('#dt_echeance').value||'',
+    statut:$('#dt_statut').value==='Remboursé'?'remboursé':'en cours',description:$('#dt_desc').value.trim()};
+  if(editingId){ Object.assign(S.dettes.find(x=>x.id===editingId),data); toast('Modifié','ok'); }
+  else { S.dettes.push({id:uid(),...data}); toast(data.type==='dette'?'Dette ajoutée':'Prêt ajouté','ok'); }
+  save(); closeSheet(); renderAll();
+}
+function askDeleteDette(id){
+  const x=S.dettes.find(y=>y.id===id); if(!x) return;
+  if(confirm(`Supprimer « ${x.personne||'sans nom'} » (${fmt(num(x.montant))}) ?`)){
+    S.dettes=S.dettes.filter(y=>y.id!==id); save(); closeSheet(); renderAll(); toast('Supprimé','info');
+  }
+}
+/* ===== Suivi Tontine / Sol : cycle, position, date estimée du tour ===== */
+function openTontineSheet(id){
+  const e=S.epargnes.find(x=>x.id===id); if(!e) return;
+  const participants=Math.max(1,Math.round(num(e.participants)||1));
+  const position=Math.max(0,Math.round(num(e.position)||0));
+  const contrib=num(e.contribution);
+  const cotise=goalActuel(e);
+  const roundsDone=contrib>0?Math.min(participants,Math.round(cotise/contrib)):0;
+  const contribDates=(S.transferts||[]).filter(t=>t.epargneId===id&&num(t.epargneDelta)>0).map(t=>t.date).filter(Boolean).sort();
+  const firstDate=contribDates[0]||periodRange(currentPeriodKey()).start;
+  const roundDate=i=>{ const d=isoToDate(firstDate); d.setMonth(d.getMonth()+(i-1)); return d; };
+  const f=d=>d.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'2-digit'});
+  const turnDate=position>0?roundDate(position):null;
+  const roundsLeft=position>0?Math.max(0,position-roundsDone):0;
+  const roundsHTML=Array.from({length:participants},(_,i)=>i+1).map(i=>{
+    const isMine=i===position, done=i<=roundsDone;
+    const bg=isMine?'rgba(143,181,115,.16)':(done?'var(--s1)':'transparent'), bd=isMine?'var(--good)':'var(--line)';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid ${bd};border-radius:10px;margin-bottom:6px;background:${bg}">
+      <div style="width:26px;height:26px;border-radius:50%;background:${done?'var(--good)':'var(--s3)'};color:${done?'#fff':'var(--txt3)'};display:grid;place-items:center;font-size:11px;font-weight:700;flex:none">${i}</div>
+      <div style="flex:1"><div style="font-size:12.5px;font-weight:${isMine?700:500}">Tour ${i}${isMine?' · TON TOUR':''}</div><div style="font-size:10.5px;color:var(--txt3)">${f(roundDate(i))}</div></div>
+      <div style="font-size:11px;color:${done?'var(--good)':'var(--txt3)'}">${done?'cotisé':(isMine&&e.tourPris?'reçu':'à venir')}</div>
+    </div>`;
+  }).join('');
+  $('#sheetTitle').textContent='Cycle du sol';
+  $('#sheetBody').innerHTML=`
+    <div style="text-align:center;margin-bottom:14px">
+      <div style="font-family:'Space Grotesk';font-weight:700;font-size:18px">${esc(e.nom)}</div>
+      <div style="font-size:12px;color:var(--txt3)">${participants} participants · ${fmtGoal(e,contrib)}/tour</div>
+    </div>
+    <div class="card"><div style="display:flex;text-align:center">
+      <div style="flex:1"><div style="font-size:11px;color:var(--txt2)">Ta position</div><div style="font-family:'Space Grotesk';font-weight:700;font-size:17px">${position||'?'} / ${participants}</div></div>
+      <div style="width:1px;background:var(--line);margin:2px 8px"></div>
+      <div style="flex:1"><div style="font-size:11px;color:var(--txt2)">Cotisé</div><div style="font-family:'Space Grotesk';font-weight:700;font-size:17px">${fmtGoal(e,cotise)}</div></div>
+      <div style="width:1px;background:var(--line);margin:2px 8px"></div>
+      <div style="flex:1"><div style="font-size:11px;color:var(--txt2)">Ta part</div><div style="font-family:'Space Grotesk';font-weight:700;font-size:17px;color:var(--accent-lt)">${fmtGoal(e,e.objectif)}</div></div>
+    </div></div>
+    <div class="card" style="text-align:center">
+      <div style="font-size:12px;color:var(--txt2)">Ton tour</div>
+      <div style="font-family:'Space Grotesk';font-weight:700;font-size:18px;color:${e.tourPris?'var(--good)':'var(--accent-lt)'}">${e.tourPris?'Déjà reçu':(turnDate?f(turnDate):'—')}</div>
+      ${!e.tourPris&&position>0?`<div style="font-size:11.5px;color:var(--txt3);margin-top:2px">${roundsLeft===0?'C\'est bientôt ton tour !':'dans ~'+roundsLeft+' tour(s)'}</div>`:''}
+    </div>
+    <div class="section-title">Calendrier des tours</div>
+    ${roundsHTML}
+    <div style="font-size:10.5px;color:var(--txt3);margin:8px 0 4px;line-height:1.4">Dates estimées à partir de ta 1re cotisation, un tour par mois.</div>
+    ${backRow("closeSheet()","Fermer")}`;
+  $('#backdrop').classList.add('open'); $('#sheet').classList.add('open');
 }
 
 /* =========================================================
@@ -1967,20 +2091,23 @@ function renderStats(){
 function switchSubTab(s){ statsSub=s; renderStats(); refreshCharts('stats'); }
 function renderBudget(){
   const sb=spentByCat();
+  const env=S.envelopeMode;
   let totB=0,totS=0;
   const rows=S.budgets.map(b=>{
-    const spent=sb[b.categorie]||0; const bud=num(b.montant);
+    const spent=sb[b.categorie]||0;
+    const bud=budgetFor(b.categorie);        // base + report si enveloppe
+    const carry=env?envelopeCarryIn(b.categorie,S.currentMonth):0;
     totB+=bud; totS+=spent;
     const pct=bud>0?(spent/bud*100):0; const bc=bCol(pct); const gap=spent-bud;
     const cc=CC[b.categorie]||{color:'#A89580',icon:'ellipsis'};
     return `<div class="b-row">
-      <div class="b-cat"><i class="fa-solid fa-${cc.icon}" style="background:${cc.color}22;color:${cc.color}"></i>${esc(b.categorie)}</div>
+      <div class="b-cat"><i class="fa-solid fa-${cc.icon}" style="background:${cc.color}22;color:${cc.color}"></i>${esc(b.categorie)}${env&&carry?`<span style="font-size:10px;color:${carry>=0?'var(--good)':'var(--bad)'};margin-left:4px">${carry>=0?'+':''}${fmt(carry)} report</span>`:''}</div>
       <div class="b-nums"><div class="real">${fmt(spent)} <span style="color:var(--txt3);font-family:'DM Sans'">/ ${fmt(bud)}</span></div>
       <div class="gap" style="color:${bc.col}">${Math.round(pct)}% · ${gap>=0?'+'+fmt(gap):fmt(gap)}</div></div>
     </div>`;
   }).join('');
   const totPct=totB>0?(totS/totB*100):0; const tbc=bCol(totPct);
-  $('#statsContent').innerHTML=`<div class="b-table">${rows}
+  $('#statsContent').innerHTML=`${env?'<div style="font-size:11.5px;color:var(--txt2);background:var(--s1);border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:10px"><i class="fa-solid fa-envelope" style="color:var(--accent)"></i> Mode enveloppe : le non-dépensé (ou le dépassement) d\'une catégorie est reporté sur la période suivante.</div>':''}<div class="b-table">${rows}
     <div class="b-row total"><div class="b-cat"><i class="fa-solid fa-equals" style="background:var(--accent)22;color:var(--accent)"></i>Total</div>
       <div class="b-nums"><div class="real">${fmt(totS)} <span style="color:var(--txt3);font-family:'DM Sans'">/ ${fmt(totB)}</span></div>
       <div class="gap" style="color:${tbc.col}">${Math.round(totPct)}% · ${totS-totB>=0?'+'+fmt(totS-totB):fmt(totS-totB)}</div></div></div>
@@ -2001,7 +2128,8 @@ function renderGraphsHTML(){
     <div class="card"><h3><i class="fa-solid fa-wave-square"></i>Solde cumulé (${statsRange} mois)</h3><div class="chart-box"><canvas id="gLine"></canvas></div></div>
     <div class="card"><h3><i class="fa-solid fa-piggy-bank"></i>Épargne par objectif</h3>
       <div class="ring-wrap"><canvas id="gEp"></canvas><div class="ring-center"><span class="rc-lbl">Total</span><span class="rc-val">${fmtS(S.epargnes.reduce((s,e)=>s+goalSavingsValue(e),0))}</span></div></div>
-      <div id="gEpLegend"></div></div>`;
+      <div id="gEpLegend"></div></div>
+    ${calendarCard()}`;
 }
 /* Légende HTML (pastille couleur + nom + montant) pour un donut. */
 function legendHTML(data,fmtFn){ fmtFn=fmtFn||fmt; if(!data||!data.length) return ''; return data.map(d=>`<div class="lg-row"><span class="dot" style="background:${d.color}"></span><span class="nm">${d.icon?`<i class="fa-solid fa-${d.icon}" style="color:${d.color}"></i> `:''}${esc(d.cat)}</span><span class="amt">${fmtFn(d.val)}</span></div>`).join(''); }
@@ -2138,9 +2266,8 @@ function openSheet(mode,id){
   else if(mode==='epargne'){ title.textContent=id?'Modifier l\'objectif':'Nouvel objectif'; body.innerHTML=epargneForm(id); setTimeout(()=>{initCurBlock('e_obj');updateContribPreview();},0); }
   else if(mode==='transfert'){ title.textContent=id?'Modifier le virement':'Nouveau virement'; body.innerHTML=transfertForm(id); setTimeout(()=>{initCurBlock('t_montant');updateTransPreview();},0); }
   else if(mode==='budget'){ title.textContent='Budgets du mois'; body.innerHTML=budgetForm(); }
+  else if(mode==='dette'){ title.textContent=id?'Modifier':'Dette / Prêt'; body.innerHTML=detteForm(id); }
   else if(mode==='more'){ title.textContent='Options'; body.innerHTML=moreSheet(); }
-  else if(mode==='settings'){ title.textContent='Réglages'; body.innerHTML=settingsHTML(); setTimeout(previewPeriod,0); }
-  else if(mode==='convert'){ title.textContent='Convertisseur de devises'; body.innerHTML=converterHTML()+`<div style="font-size:11px;color:var(--txt3);text-align:center;margin-top:4px">La devise principale se choisit dans les Réglages.</div>`; setTimeout(updateConvert,40); }
   else if(mode==='install'){ title.textContent='Installer sur téléphone'; body.innerHTML=installHTML(); }
   $('#backdrop').classList.add('open'); $('#sheet').classList.add('open');
   setTimeout(()=>{ const f=body.querySelector('input,select,textarea'); if(f) f.focus(); },360);
@@ -2218,7 +2345,7 @@ function epargneForm(id){
     <div class="field"><label>Type</label>${selectArr('e_type',TYPES_EP,e.type||'Compte épargne','onchange="onTypeChange(this)"')}</div>
     <div class="field"><label>Compte associe</label>${selectArr('e_compte',Object.keys(COMPTES),e.compte||(isTontine?'Tontine':'Compte épargne'))}</div>
   </div>
-  <div class="field" id="curField"><label>Devise de l'objectif</label>${isTontine?`<div class="input" style="background:var(--s2);display:flex;align-items:center;color:var(--txt2);font-size:14px">HTG — Gourde haitienne (fixe)</div>`:curBlock('e_obj',cur,e.taux,savCur())}</div>
+  <div class="field" id="curField"><label>Devise de l'objectif</label>${isTontine?`<div class="input" style="background:var(--s2);display:flex;align-items:center;color:var(--txt2);font-size:14px">HTG - Gourde haitienne (fixe)</div>`:curBlock('e_obj',cur,e.taux,savCur())}</div>
   <div class="field-2">
     <div class="field"><label>Montant actuel</label><input type="number" step="0.01" inputmode="decimal" class="input" id="e_actuel" value="${a??0}"></div>
     <div class="field"><label>Objectif <span class="req">*</span></label><input type="number" step="0.01" inputmode="decimal" class="input" id="e_obj" value="${o??''}" placeholder="0,00" oninput="syncCurPreview('e_obj')"></div>
@@ -2236,8 +2363,13 @@ function epargneForm(id){
   <button class="btn" onclick="saveEpargne()"><i class="fa-solid fa-check"></i> Enregistrer</button>
   ${id?`<button class="btn danger" onclick="deleteEpargne('${id}')"><i class="fa-solid fa-trash"></i> Supprimer l'objectif</button>`:''}`;
 }
+function toggleEnvelope(){ S.envelopeMode=!S.envelopeMode; save(); renderAll(); openSheet('budget'); }
 function budgetForm(){
-  return `<p style="font-size:12.5px;color:var(--txt2);margin:0 0 14px">Définis le montant prévu par catégorie pour <b style="color:var(--accent-lt)">${monthLabel(S.currentMonth)} ${yearLabel(S.currentMonth)}</b>.</p>`+
+  return `<p style="font-size:12.5px;color:var(--txt2);margin:0 0 12px">Définis le montant prévu par catégorie.</p>
+  <div class="field" style="display:flex;align-items:center;gap:12px;background:var(--s1);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:14px">
+    <label class="switch"><input type="checkbox" ${S.envelopeMode?'checked':''} onchange="toggleEnvelope()"><span class="sl"></span></label>
+    <div><div style="font-weight:600;font-size:14px">Budget enveloppe</div><div style="font-size:11px;color:var(--txt3)">Reporte le non-dépensé (ou le dépassement) d'une période sur la suivante</div></div>
+  </div>`+
     Object.keys(CC).map(c=>{const b=S.budgets.find(x=>x.categorie===c);const cc=CC[c];return `
       <div class="field" style="display:flex;align-items:center;gap:11px;margin-bottom:9px">
         <i class="fa-solid fa-${cc.icon}" style="width:34px;height:34px;border-radius:10px;background:${cc.color}22;color:${cc.color};display:grid;place-items:center;flex:none"></i>
@@ -2246,51 +2378,24 @@ function budgetForm(){
       </div>`;}).join('')+
     `<button class="btn" onclick="saveBudgets()"><i class="fa-solid fa-check"></i> Enregistrer les budgets</button>`;
 }
-function settingsHTML(){
-  const ac=acctCur(), sc=savCur();
-  return `<div class="section-title">Devises</div>
-  <div class="field-2">
-    <div class="field"><label>Devise des comptes</label><select class="select" id="set_acct">${currencyOptions(ac,true)}</select></div>
-    <div class="field"><label>Devise de l'épargne</label><select class="select" id="set_sav">${currencyOptions(sc,true)}</select></div>
-  </div>
-  <div style="font-size:12px;color:var(--txt2);margin:-4px 0 16px;line-height:1.5">Les comptes sont en <b>${ac}</b> et l'épargne en <b>${sc}</b>. Les montants saisis dans une autre devise sont convertis automatiquement. Changer une devise reconvertit les donnees existantes.</div>
-  <button class="btn ghost" style="margin:0 0 16px" onclick="openRatePrompt(rateKeyCurrencies())"><i class="fa-solid fa-arrows-rotate"></i> Mettre a jour les taux du jour</button>
-  <div class="section-title">Période budgétaire</div>
-  <div class="field"><label>Type de période</label>
-    <select class="select" id="set_pmode" onchange="previewPeriod()">
-      <option value="calendar" ${periodMode()==='calendar'?'selected':''}>Mois calendaire (1er au dernier jour)</option>
-      <option value="income" ${periodMode()==='income'?'selected':''}>Basée sur mes revenus (salaire à salaire)</option>
-    </select>
-  </div>
-  <div class="field" id="anchorCatField" style="display:${periodMode()==='income'?'block':'none'}"><label>Revenu qui démarre la période</label>
-    <select class="select" id="set_anchorcat" onchange="previewPeriod()">${Object.keys(RC).map(c=>`<option value="${c}" ${c===periodAnchorCat()?'selected':''}>${c}</option>`).join('')}</select>
-  </div>
-  <div id="periodPreview" style="font-size:11.5px;color:var(--txt2);margin:-4px 0 16px;line-height:1.5"></div>
-  <div class="section-title">Soldes initiaux des comptes (${ac})</div>`+
-  Object.keys(COMPTES).map(c=>{
-    const ic=COMPTES[c], bal=(S.comptes&&S.comptes[c])?S.comptes[c]:0;
-    return `<div class="acct-row" style="cursor:default"><div class="ar-top"><div class="ai"><i class="fa-solid fa-${ic}"></i></div><span class="an">${c}</span></div><input type="number" step="0.01" inputmode="decimal" class="ib" data-acct="${c}" placeholder="0,00" value="${bal}"></div>`;
-  }).join('')+
-  `<div style="font-size:11px;color:var(--txt3);margin:-2px 0 14px;line-height:1.4">Solde present avant toute saisie. Sert de point de depart pour calculer le solde actuel.</div>
-  <button class="btn" onclick="saveSettings()"><i class="fa-solid fa-check"></i> Enregistrer tout</button>`;
-}
 function reconvItem(it,old,newC){
   const f=rateOf(old)/rateOf(newC);
   it.montant=num(it.montant)*f;
   if(it.devise && it.devise!==old && CUR[it.devise]){ it.taux=baseRateOf(it.devise,newC); }
   else { it.devise=newC; it.taux=1; }
 }
-function saveSettings(){
+/* Enregistrer les devises (reconvertit les données existantes si la devise change). */
+function saveDevises(){
   const newAc=$('#set_acct').value, newSv=$('#set_sav').value;
   const oldAc=acctCur(), oldSv=savCur();
   if(!S.comptes) S.comptes={};
-  document.querySelectorAll('.ib').forEach(inp=>{ S.comptes[inp.dataset.acct]=num(inp.value); });
   if(newAc!==oldAc && CUR[newAc]){
     const f=rateOf(oldAc)/rateOf(newAc);
     Object.keys(S.comptes).forEach(c=>S.comptes[c]=num(S.comptes[c])*f);
     S.revenus.forEach(r=>reconvItem(r,oldAc,newAc));
     S.depenses.forEach(d=>reconvItem(d,oldAc,newAc));
     (S.transferts||[]).forEach(t=>reconvItem(t,oldAc,newAc)); // les virements sont en devise des comptes -> reconvertir
+    (S.dettes||[]).forEach(x=>reconvItem(x,oldAc,newAc)); // dettes & prêts aussi
     S.budgets.forEach(b=>b.montant=num(b.montant)*f);
     S.historique.forEach(h=>{ h.revenus=Math.round(h.revenus*f); h.depenses=Math.round(h.depenses*f); });
     S.accountsCurrency=newAc; S.baseCurrency=newAc;
@@ -2301,9 +2406,19 @@ function saveSettings(){
     (S.transferts||[]).forEach(t=>{ if(t.epargneDelta) t.epargneDelta=Math.round(num(t.epargneDelta)*f*100)/100; }); // garder le delta aligné sur "actuel"
     S.savingsCurrency=newSv;
   }
+  save(); renderAll(); toast('Devises enregistrées','ok'); openSettingsMenu();
+}
+/* Enregistrer la période budgétaire. */
+function savePeriod(){
   const pm=$('#set_pmode'); if(pm) S.periodMode=(pm.value==='income')?'income':'calendar';
   const ac=$('#set_anchorcat'); if(ac && RC[ac.value]) S.periodAnchorCat=ac.value;
-  save(); closeSheet(); renderAll(); toast('Reglages enregistres','ok');
+  save(); renderAll(); toast('Période enregistrée','ok'); openSettingsMenu();
+}
+/* Enregistrer les soldes initiaux des comptes. */
+function saveBalances(){
+  if(!S.comptes) S.comptes={};
+  document.querySelectorAll('.ib').forEach(inp=>{ S.comptes[inp.dataset.acct]=num(inp.value); });
+  save(); renderAll(); toast('Soldes initiaux enregistrés','ok'); openSettingsMenu();
 }
 function previewPeriod(){
   const pm=$('#set_pmode'), el=$('#periodPreview'); if(!el) return;
@@ -2353,35 +2468,156 @@ function accountRow(){
   }
   return `<div class="opt-row" onclick="openAccountSheet()"><i class="fa-solid fa-cloud-arrow-up oi" style="color:#5B9EA0;background:rgba(91,158,160,.18)"></i><div><div class="ot">Se connecter / Créer un compte</div><div class="od">Sauvegarde & synchronisation multi-appareils</div></div><i class="fa-solid fa-chevron-right"></i></div>`;
 }
+function backRow(fn,txt){ return `<div class="opt-row" onclick="${fn}"><i class="fa-solid fa-arrow-left oi" style="color:#8A7C6B;background:rgba(138,124,107,.16)"></i><div><div class="ot">Retour</div><div class="od">${txt||'Revenir en arrière'}</div></div></div>`; }
 function moreSheet(){
   return `
     ${accountRow()}
-    <div class="opt-row" onclick="openSheet('settings')"><i class="fa-solid fa-coins oi"></i><div><div class="ot">Réglages & devise</div><div class="od">Devise des comptes : ${baseCur()}</div></div><i class="fa-solid fa-chevron-right"></i></div>
-    <div class="opt-row" onclick="openSheet('convert')"><i class="fa-solid fa-coins oi"></i><div><div class="ot">Convertisseur de devises</div><div class="od">Estimer un montant etranger</div></div><i class="fa-solid fa-chevron-right"></i></div>
-    <div class="opt-row" onclick="openCsvMenu()"><i class="fa-solid fa-file-csv oi" style="color:#E0A458;background:rgba(224,164,88,.18)"></i><div><div class="ot">Importer / Exporter un CSV</div><div class="od">Revenus & dépenses au format .csv</div></div><i class="fa-solid fa-chevron-right"></i></div>
-    <div class="opt-row" onclick="openBackupMenu()"><i class="fa-solid fa-database oi" style="color:#5B9EA0;background:rgba(91,158,160,.18)"></i><div><div class="ot">Importer / Exporter une sauvegarde</div><div class="od">Toutes tes données au format .json</div></div><i class="fa-solid fa-chevron-right"></i></div>
-    <div class="opt-row" onclick="openSheet('budget')"><i class="fa-solid fa-sliders oi"></i><div><div class="ot">Gérer les budgets</div><div class="od">Montants prévus par catégorie</div></div><i class="fa-solid fa-chevron-right"></i></div>
+    <div class="opt-row" onclick="openSettingsMenu()"><i class="fa-solid fa-gear oi"></i><div><div class="ot">Réglages et devises</div><div class="od">Devises, convertisseur, budgets</div></div><i class="fa-solid fa-chevron-right"></i></div>
+    <div class="opt-row" onclick="openDataMenu()"><i class="fa-solid fa-file-export oi" style="color:#5B9EA0;background:rgba(91,158,160,.18)"></i><div><div class="ot">Importer / Exporter des données</div><div class="od">CSV & sauvegarde .json</div></div><i class="fa-solid fa-chevron-right"></i></div>
     <div class="opt-row" onclick="confirmReset()"><i class="fa-solid fa-trash-can oi"></i><div><div class="ot">Réinitialiser les données</div><div class="od">Revenir aux données d'exemple</div></div><i class="fa-solid fa-chevron-right"></i></div>
     <div style="text-align:center;margin-top:18px;color:var(--txt3);font-size:11.5px">
       <div style="margin-bottom:6px">${mascot('happy').replace('class="masc-svg"','style="width:54px;height:54px;display:inline-block"')}</div>
-      Budget · par Noisette<br>Données stockées localement (localStorage)
+      Noisette
     </div>`;
 }
-/* Sous-menu : Importer / Exporter un CSV */
+/* Sous-menu : Réglages et devises (chaque entrée = sa propre sous-option) */
+function openSettingsMenu(){
+  $('#sheetTitle').textContent='Réglages et devises';
+  $('#sheetBody').innerHTML=`
+    <div class="opt-row" onclick="openDevisesSheet()"><i class="fa-solid fa-coins oi"></i><div><div class="ot">Devises</div><div class="od">Comptes : ${acctCur()} · Épargne : ${savCur()}</div></div><i class="fa-solid fa-chevron-right"></i></div>
+    <div class="opt-row" onclick="openConvertSheet()"><i class="fa-solid fa-right-left oi"></i><div><div class="ot">Convertisseur & taux de change</div><div class="od">Convertir un montant et mettre à jour les taux</div></div><i class="fa-solid fa-chevron-right"></i></div>
+    <div class="opt-row" onclick="openPeriodSheet()"><i class="fa-solid fa-calendar-days oi"></i><div><div class="ot">Période budgétaire</div><div class="od">${periodMode()==='income'?'Basée sur tes revenus':'Mois calendaire'}</div></div><i class="fa-solid fa-chevron-right"></i></div>
+    <div class="opt-row" onclick="openBalancesSheet()"><i class="fa-solid fa-scale-balanced oi"></i><div><div class="ot">Soldes initiaux</div><div class="od">Point de départ de chaque compte</div></div><i class="fa-solid fa-chevron-right"></i></div>
+    <div class="opt-row" onclick="openSheet('budget')"><i class="fa-solid fa-sliders oi"></i><div><div class="ot">Gérer les budgets</div><div class="od">Montants prévus par catégorie</div></div><i class="fa-solid fa-chevron-right"></i></div>
+    <div class="opt-row" onclick="openCatsSheet()"><i class="fa-solid fa-tags oi"></i><div><div class="ot">Catégories personnalisées</div><div class="od">Créer / supprimer tes catégories</div></div><i class="fa-solid fa-chevron-right"></i></div>
+    ${backRow("openSheet('more')","Revenir aux options")}`;
+}
+/* ===== Catégories personnalisées ===== */
+const CAT_COLORS=['#E0A458','#8FB573','#5B9EA0','#C9876B','#B08CA8','#D98E8E','#8B6F47','#C9B68E','#6E9A52','#7E94A8','#D4A574','#9A6028'];
+const CAT_ICONS=['tag','cart-shopping','car','house','utensils','heart-pulse','shirt','gamepad','plane','graduation-cap','gift','bolt','phone','dumbbell','paw','music','book','briefcase','coins','hand-holding-heart','baby','plane-departure','wine-glass','scissors'];
+let catDraft={type:'depense',color:'#E0A458',icon:'tag'};
+function isDefaultCat(name,type){ const DEF_D=['Alimentation','Transport','Loisir','Santé','Vêtements','Épargne','Care','Abonnements','Sport','Occasion spéciale','Autres dépenses','Dons']; const DEF_R=['Salaire','Freelance','Dividendes','Location','Cadeau','Autre revenu']; return (type==='depense'?DEF_D:DEF_R).indexOf(name)>=0; }
+function openCatsSheet(){
+  $('#sheetTitle').textContent='Catégories';
+  const isD=catDraft.type==='depense';
+  const map=isD?CC:RC, custom=isD?S.customCatsD:S.customCatsR;
+  const rows=Object.keys(map).map(k=>{
+    const cc=map[k], def=isDefaultCat(k,catDraft.type);
+    return `<div class="opt-row" style="cursor:default"><i class="fa-solid fa-${cc.icon} oi" style="color:${cc.color};background:${cc.color}22"></i><div><div class="ot">${esc(k)}</div><div class="od">${def?'Par défaut':'Personnalisée'}</div></div>${def?'':`<button class="ic-del" title="Supprimer" onclick="deleteCat('${catDraft.type}','${esc(k).replace(/'/g,"\\'")}')"><i class="fa-solid fa-trash-can"></i></button>`}</div>`;
+  }).join('');
+  $('#sheetBody').innerHTML=`
+    <div class="subtabs" style="margin-bottom:14px">
+      <button class="subtab ${isD?'active':''}" onclick="setCatType('depense')">Dépenses</button>
+      <button class="subtab ${!isD?'active':''}" onclick="setCatType('revenu')">Revenus</button>
+    </div>
+    <div class="section-title">Nouvelle catégorie</div>
+    <div class="field"><label>Nom</label><input type="text" class="input" id="cat_name" placeholder="Ex. Cadeaux, Loyer…" value=""></div>
+    <div class="field"><label>Couleur</label><div style="display:flex;flex-wrap:wrap;gap:8px">${CAT_COLORS.map(c=>`<span onclick="catDraft.color='${c}';openCatsSheet()" style="width:26px;height:26px;border-radius:8px;background:${c};cursor:pointer;border:2px solid ${catDraft.color===c?'var(--txt)':'transparent'}"></span>`).join('')}</div></div>
+    <div class="field"><label>Icône</label><div style="display:flex;flex-wrap:wrap;gap:8px">${CAT_ICONS.map(ic=>`<span onclick="catDraft.icon='${ic}';openCatsSheet()" style="width:34px;height:34px;border-radius:9px;display:grid;place-items:center;cursor:pointer;background:${catDraft.icon===ic?catDraft.color+'22':'var(--s1)'};border:1px solid ${catDraft.icon===ic?catDraft.color:'var(--line)'};color:${catDraft.icon===ic?catDraft.color:'var(--txt3)'}"><i class="fa-solid fa-${ic}"></i></span>`).join('')}</div></div>
+    <button class="btn" onclick="addCat()"><i class="fa-solid fa-plus"></i> Ajouter la catégorie</button>
+    <div class="section-title" style="margin-top:18px">${isD?'Catégories de dépenses':'Catégories de revenus'}</div>
+    ${rows}
+    ${backRow("openSettingsMenu()","Réglages et devises")}`;
+}
+function setCatType(t){ catDraft.type=t; openCatsSheet(); }
+function addCat(){
+  const name=($('#cat_name')&&$('#cat_name').value||'').trim();
+  if(!name) return toast('Donne un nom à la catégorie','err');
+  const isD=catDraft.type==='depense';
+  const map=isD?CC:RC, custom=isD?S.customCatsD:S.customCatsR;
+  if(map[name]) return toast('Cette catégorie existe déjà','err');
+  const def={color:catDraft.color,icon:catDraft.icon};
+  map[name]=def; custom[name]=def;
+  if(isD){ if(!SUBCATS[name]) SUBCATS[name]=['Divers']; S.budgets.push({categorie:name,montant:0}); }
+  save(); toast('Catégorie « '+name+' » ajoutée','ok'); openCatsSheet();
+}
+function deleteCat(type,name){
+  if(isDefaultCat(name,type)) return;
+  if(!confirm(`Supprimer la catégorie « ${name} » ?\nLes entrées qui l'utilisent passeront dans « ${type==='depense'?'Autres dépenses':'Autre revenu'} ».`)) return;
+  const isD=type==='depense', fallback=isD?'Autres dépenses':'Autre revenu';
+  if(isD){ S.depenses.forEach(d=>{ if(d.categorie===name) d.categorie=fallback; }); S.budgets=S.budgets.filter(b=>b.categorie!==name); delete CC[name]; delete S.customCatsD[name]; delete SUBCATS[name]; }
+  else { S.revenus.forEach(r=>{ if(r.categorie===name) r.categorie=fallback; }); delete RC[name]; delete S.customCatsR[name]; }
+  save(); renderAll(); toast('Catégorie supprimée','info'); openCatsSheet();
+}
+/* Sous-sous-option : Devises */
+function openDevisesSheet(){
+  const ac=acctCur(), sc=savCur();
+  $('#sheetTitle').textContent='Devises';
+  $('#sheetBody').innerHTML=`
+    <div class="field-2">
+      <div class="field"><label>Devise des comptes</label><select class="select" id="set_acct">${currencyOptions(ac,true)}</select></div>
+      <div class="field"><label>Devise de l'épargne</label><select class="select" id="set_sav">${currencyOptions(sc,true)}</select></div>
+    </div>
+    <div style="font-size:12px;color:var(--txt2);margin:-4px 0 16px;line-height:1.5">Les comptes sont en <b>${ac}</b> et l'épargne en <b>${sc}</b>. Les montants saisis dans une autre devise sont convertis automatiquement. Changer une devise reconvertit les données existantes.</div>
+    <button class="btn" onclick="saveDevises()"><i class="fa-solid fa-check"></i> Enregistrer</button>
+    ${backRow("openSettingsMenu()","Réglages et devises")}`;
+}
+/* Sous-sous-option : Convertisseur & taux de change (convertisseur + taux du jour sur un seul écran) */
+function openConvertSheet(){
+  const ac=acctCur();
+  const keys=rateKeyCurrencies();
+  const rateRows=keys.map(c=>{ const cur=rateOf(c)/rateOf(ac); return `<div class="field"><label>${c} - ${CUR[c].name}<span style="color:var(--txt3);font-weight:400"> (1 ${c} = ? ${ac})</span></label><input type="number" step="0.0001" inputmode="decimal" class="input rate-in" data-cur="${c}" value="${cur.toFixed(4)}" placeholder="${cur.toFixed(4)}"></div>`; }).join('');
+  $('#sheetTitle').textContent='Convertisseur & taux';
+  $('#sheetBody').innerHTML=`
+    <div class="section-title" style="margin-top:0">Taux du jour</div>
+    <div style="font-size:11.5px;color:var(--txt2);margin:-4px 0 12px;line-height:1.5">Devise de référence : <b>${ac}</b>. Dernière mise à jour : ${S.lastRateUpdate?fmtDate(S.lastRateUpdate):'jamais'}.</div>
+    ${keys.length?rateRows+`<button class="btn" onclick="saveDailyRate()"><i class="fa-solid fa-check"></i> Enregistrer les taux</button>`:`<div style="font-size:12px;color:var(--txt3);background:var(--s1);border:1px solid var(--line);border-radius:12px;padding:14px">Aucune autre devise utilisée pour l'instant : rien à mettre à jour.</div>`}
+    <div class="section-title" style="margin-top:18px">Convertisseur</div>
+    ${converterHTML()}
+    ${backRow("openSettingsMenu()","Réglages et devises")}`;
+  setTimeout(updateConvert,40);
+}
+/* Sous-sous-option : Période budgétaire */
+function openPeriodSheet(){
+  $('#sheetTitle').textContent='Période budgétaire';
+  $('#sheetBody').innerHTML=`
+    <div class="field"><label>Type de période</label>
+      <select class="select" id="set_pmode" onchange="previewPeriod()">
+        <option value="calendar" ${periodMode()==='calendar'?'selected':''}>Mois calendaire (1er au dernier jour)</option>
+        <option value="income" ${periodMode()==='income'?'selected':''}>Basée sur mes revenus (salaire à salaire)</option>
+      </select>
+    </div>
+    <div class="field" id="anchorCatField" style="display:${periodMode()==='income'?'block':'none'}"><label>Revenu qui démarre la période</label>
+      <select class="select" id="set_anchorcat" onchange="previewPeriod()">${Object.keys(RC).map(c=>`<option value="${c}" ${c===periodAnchorCat()?'selected':''}>${c}</option>`).join('')}</select>
+    </div>
+    <div id="periodPreview" style="font-size:11.5px;color:var(--txt2);margin:-4px 0 16px;line-height:1.5"></div>
+    <button class="btn" onclick="savePeriod()"><i class="fa-solid fa-check"></i> Enregistrer</button>
+    ${backRow("openSettingsMenu()","Réglages et devises")}`;
+  setTimeout(previewPeriod,0);
+}
+/* Sous-sous-option : Soldes initiaux des comptes */
+function openBalancesSheet(){
+  const ac=acctCur();
+  $('#sheetTitle').textContent='Soldes initiaux';
+  $('#sheetBody').innerHTML=`
+    <div style="font-size:12px;color:var(--txt2);margin:0 0 12px;line-height:1.5">Solde présent sur chaque compte avant toute saisie (en ${ac}). Sert de point de départ pour calculer le solde actuel.</div>`+
+    Object.keys(COMPTES).map(c=>{ const ic=COMPTES[c], bal=(S.comptes&&S.comptes[c])?S.comptes[c]:0; return `<div class="acct-row" style="cursor:default"><div class="ar-top"><div class="ai"><i class="fa-solid fa-${ic}"></i></div><span class="an">${c}</span></div><input type="number" step="0.01" inputmode="decimal" class="ib" data-acct="${c}" placeholder="0,00" value="${bal}"></div>`; }).join('')+
+    `<button class="btn" style="margin-top:14px" onclick="saveBalances()"><i class="fa-solid fa-check"></i> Enregistrer</button>
+    ${backRow("openSettingsMenu()","Réglages et devises")}`;
+}
+/* Sous-menu : Importer / Exporter des données */
+function openDataMenu(){
+  $('#sheetTitle').textContent='Importer / Exporter des données';
+  $('#sheetBody').innerHTML=`
+    <div class="opt-row" onclick="openCsvMenu()"><i class="fa-solid fa-file-csv oi" style="color:#E0A458;background:rgba(224,164,88,.18)"></i><div><div class="ot">Importer / Exporter un CSV</div><div class="od">Revenus & dépenses au format .csv</div></div><i class="fa-solid fa-chevron-right"></i></div>
+    <div class="opt-row" onclick="openBackupMenu()"><i class="fa-solid fa-database oi" style="color:#5B9EA0;background:rgba(91,158,160,.18)"></i><div><div class="ot">Importer / Exporter une sauvegarde</div><div class="od">Toutes tes données au format .json</div></div><i class="fa-solid fa-chevron-right"></i></div>
+    ${backRow("openSheet('more')","Revenir aux options")}`;
+}
+/* Sous-menu CSV */
 function openCsvMenu(){
   $('#sheetTitle').textContent='Importer / Exporter un CSV';
   $('#sheetBody').innerHTML=`
     <div class="opt-row" onclick="importCSV()"><i class="fa-solid fa-file-arrow-up oi" style="color:#E0A458;background:rgba(224,164,88,.18)"></i><div><div class="ot">Importer un CSV</div><div class="od">Ajoute des revenus/dépenses depuis un fichier .csv</div></div><i class="fa-solid fa-chevron-right"></i></div>
     <div class="opt-row" onclick="exportCSV()"><i class="fa-solid fa-file-csv oi"></i><div><div class="ot">Exporter en CSV</div><div class="od">Revenus, dépenses & budget du mois</div></div><i class="fa-solid fa-chevron-right"></i></div>
-    <div class="opt-row" onclick="openSheet('more')"><i class="fa-solid fa-arrow-left oi" style="color:#8A7C6B;background:rgba(138,124,107,.16)"></i><div><div class="ot">Retour</div><div class="od">Revenir aux options</div></div></div>`;
+    ${backRow("openDataMenu()","Importer / Exporter des données")}`;
 }
-/* Sous-menu : Importer / Exporter une sauvegarde (.json) */
+/* Sous-menu sauvegarde (.json) */
 function openBackupMenu(){
   $('#sheetTitle').textContent='Importer / Exporter une sauvegarde';
   $('#sheetBody').innerHTML=`
     <div class="opt-row" onclick="importBackup()"><i class="fa-solid fa-cloud-arrow-up oi" style="color:#8FB573;background:rgba(143,181,115,.18)"></i><div><div class="ot">Importer une sauvegarde</div><div class="od">Restaurer une session à partir d'un .json</div></div><i class="fa-solid fa-chevron-right"></i></div>
     <div class="opt-row" onclick="exportBackup()"><i class="fa-solid fa-cloud-arrow-down oi" style="color:#5B9EA0;background:rgba(91,158,160,.18)"></i><div><div class="ot">Exporter une sauvegarde</div><div class="od">Fichier .json de toutes tes données</div></div><i class="fa-solid fa-chevron-right"></i></div>
-    <div class="opt-row" onclick="openSheet('more')"><i class="fa-solid fa-arrow-left oi" style="color:#8A7C6B;background:rgba(138,124,107,.16)"></i><div><div class="ot">Retour</div><div class="od">Revenir aux options</div></div></div>`;
+    ${backRow("openDataMenu()","Importer / Exporter des données")}`;
 }
 
 function selectOpts(id,cfg,val,extra){ return `<select class="select" id="${id}" ${extra||''}>`+Object.keys(cfg).map(k=>`<option value="${k}" ${k===val?'selected':''}>${k}</option>`).join('')+`</select>`; }
@@ -2399,7 +2635,7 @@ function onTypeChange(sel){
   if(compte && isTontine) compte.value='Tontine';
   if(cf){
     if(isTontine){
-      cf.innerHTML='<label>Devise de l\'objectif</label><input type="hidden" id="cur_e_obj" data-base="HTG" data-amt="e_obj"><div class="input" style="background:var(--s2);display:flex;align-items:center;color:var(--txt2);font-size:14px">HTG — Gourde haitienne (fixe)</div>';
+      cf.innerHTML='<label>Devise de l\'objectif</label><input type="hidden" id="cur_e_obj" data-base="HTG" data-amt="e_obj"><div class="input" style="background:var(--s2);display:flex;align-items:center;color:var(--txt2);font-size:14px">HTG - Gourde haitienne (fixe)</div>';
     } else {
       cf.innerHTML='<label>Devise de l\'objectif</label>'+curBlock('e_obj',savCur(),1,savCur());
       setTimeout(()=>initCurBlock('e_obj'),20);
@@ -2703,7 +2939,12 @@ function saveWelcome(){
 /* Normalise / migre un etat charge (localStorage ou sauvegarde importee). */
 function migrateState(){
   // garantir la presence des tableaux attendus (sauvegardes anciennes ou partielles)
-  ['revenus','depenses','epargnes','transferts','budgets','historique'].forEach(function(k){ if(!Array.isArray(S[k])) S[k]=[]; });
+  ['revenus','depenses','epargnes','transferts','budgets','historique','dettes'].forEach(function(k){ if(!Array.isArray(S[k])) S[k]=[]; });
+  // Catégories personnalisées : fusionnées dans CC/RC pour être reconnues partout (AVANT la remap ci-dessous).
+  if(!S.customCatsD || typeof S.customCatsD!=='object') S.customCatsD={};
+  if(!S.customCatsR || typeof S.customCatsR!=='object') S.customCatsR={};
+  Object.keys(S.customCatsD).forEach(function(k){ if(!CC[k]) CC[k]=S.customCatsD[k]; });
+  Object.keys(S.customCatsR).forEach(function(k){ if(!RC[k]) RC[k]=S.customCatsR[k]; });
   // migration categories : renommer les anciennes vers la nouvelle liste
   const CAT_MAP={'Logement':'Autres dépenses','Loisirs':'Loisir','Éducation':'Autres dépenses','Vêtement':'Vêtements','Vetement':'Vêtements','Impôts':'Autres dépenses','Assurances':'Autres dépenses','Autre dépense':'Autres dépenses','Soins':'Care','Épargnes':'Épargne'};
   const ACCT_MAP={'Compte joint':'Compte courant','Livret A':'Compte épargne','PEA':'Compte épargne','Compte dollar':'Compte épargne'};
@@ -2730,6 +2971,7 @@ function migrateState(){
   if(S.periodMode!=='income') S.periodMode='calendar';
   if(!S.periodAnchorCat || !RC[S.periodAnchorCat]) S.periodAnchorCat='Salaire';
   if(!S.rolledOver || typeof S.rolledOver!=='object') S.rolledOver={};
+  if(typeof S.envelopeMode!=='boolean') S.envelopeMode=false;
   // migration : ancien réglage jour-fixe -> on bascule en mode revenu si présent
   if(S.periodStartDay!=null){ if(num(S.periodStartDay)>1) S.periodMode='income'; delete S.periodStartDay; }
   if(!Array.isArray(S.transferts)) S.transferts=[];
@@ -2762,7 +3004,8 @@ function init(){
     save();
     hideWelcome();
     renderAll();
-    checkDailyRate();
+    // Plus de pop-up automatique des taux au démarrage (agaçant à chaque refresh).
+    // Les taux se mettent à jour manuellement dans Réglages -> Convertisseur & taux.
     if(_rollN>0) setTimeout(()=>toast(`${_rollN} entrée(s) récurrente(s) ajoutée(s) pour cette période`,'ok'),800);
   }
 }
@@ -2787,7 +3030,7 @@ function openRatePrompt(keys){
   const ac=acctCur();
   const rows=keys.map(c=>{
     const cur=rateOf(c)/rateOf(ac);
-    return `<div class="field"><label>${c} — ${CUR[c].name}<span style="color:var(--txt3);font-weight:400"> (1 ${c} = ? ${ac})</span></label><input type="number" step="0.0001" inputmode="decimal" class="input rate-in" data-cur="${c}" value="${cur.toFixed(4)}" placeholder="${cur.toFixed(4)}"></div>`;
+    return `<div class="field"><label>${c} - ${CUR[c].name}<span style="color:var(--txt3);font-weight:400"> (1 ${c} = ? ${ac})</span></label><input type="number" step="0.0001" inputmode="decimal" class="input rate-in" data-cur="${c}" value="${cur.toFixed(4)}" placeholder="${cur.toFixed(4)}"></div>`;
   }).join('');
   const body=$('#sheetBody');
   body.innerHTML=`<div style="font-size:12.5px;color:var(--txt2);margin:0 0 14px;line-height:1.5">Bien joué, c'est l'heure de mettre a jour les taux du jour !<br>Devise de reference : <b>${ac}</b>. Derniere mise a jour : ${S.lastRateUpdate?fmtDate(S.lastRateUpdate):'jamais'}.</div>${rows}`;
@@ -2862,7 +3105,7 @@ function handleSignedIn(user){
     if(!remoteData){
       // rien (d'utile) dans le cloud : on y envoie les données de l'appareil
       markLinked(user.uid);
-      pushNow().then(()=>toast('Compte lié — sauvegarde cloud activée','ok'));
+      pushNow().then(()=>toast('Compte lié : sauvegarde cloud activée','ok'));
     } else if(alreadyLinked){
       // rechargement normal / même compte : réconciliation silencieuse par date, aucun popup
       if(num(remote.updatedAt) > num(S._updatedAt)){ applyRemoteState(remote.state); }
@@ -2931,7 +3174,7 @@ function scheduleCloudPush(){
   clearTimeout(cloudPushTimer);
   cloudPushTimer=setTimeout(pushNow, 1200);
 }
-function cloudManualPush(){ if(!cloudRef()) return; pushNow().then(()=>{ if(cloudStatus==='error') toast('Hors-ligne — sera synchronisé au retour du réseau','info'); else toast('Sauvegardé dans le cloud','ok'); }); }
+function cloudManualPush(){ if(!cloudRef()) return; pushNow().then(()=>{ if(cloudStatus==='error') toast('Hors-ligne : sera synchronisé au retour du réseau','info'); else toast('Sauvegardé dans le cloud','ok'); }); }
 
 /* --- Authentification --- */
 function doEmailAuth(){
@@ -2991,8 +3234,8 @@ function openAccountSheet(){
 function setAuthMode(m){ const e=$('#au_email'); if(e) authEmailCache=e.value; authMode=m; renderAccountSheet(); }
 function syncStatusText(){
   if(cloudStatus==='saving') return '<i class="fa-solid fa-cloud-arrow-up"></i> Sauvegarde en cours…';
-  if(cloudStatus==='error') return '<i class="fa-solid fa-triangle-exclamation" style="color:var(--warn)"></i> Hors-ligne — sera synchronisé au retour du réseau';
-  return '<i class="fa-solid fa-circle-check" style="color:var(--good)"></i> À jour — synchronisé';
+  if(cloudStatus==='error') return '<i class="fa-solid fa-triangle-exclamation" style="color:var(--warn)"></i> Hors-ligne : sera synchronisé au retour du réseau';
+  return '<i class="fa-solid fa-circle-check" style="color:var(--good)"></i> À jour, synchronisé';
 }
 function updateSyncLine(){ const el=$('#syncLine'); if(el) el.innerHTML=syncStatusText(); }
 /* Petite pastille de synchro dans l'en-tête : visible seulement une fois connecté. */
@@ -3002,8 +3245,8 @@ function updateSyncBadge(){
   el.style.display='grid';
   let ic,color,title;
   if(cloudStatus==='saving'){ ic='cloud-arrow-up'; color='var(--accent)'; title='Sauvegarde en cours…'; }
-  else if(cloudStatus==='error'){ ic='triangle-exclamation'; color='var(--warn)'; title='Hors-ligne — synchronisation au retour du réseau'; }
-  else { ic='cloud'; color='var(--good)'; title='À jour — synchronisé'; }
+  else if(cloudStatus==='error'){ ic='triangle-exclamation'; color='var(--warn)'; title='Hors-ligne : synchronisation au retour du réseau'; }
+  else { ic='cloud'; color='var(--good)'; title='À jour, synchronisé'; }
   el.className='sync-badge'+(cloudStatus==='saving'?' saving':'');
   el.style.color=color;
   el.title=title;
@@ -3015,7 +3258,7 @@ function renderAccountSheet(){
     let titre,corps;
     if(cloudInitError==='sdk'){
       titre='SDK Firebase non chargé';
-      corps=`Le SDK Firebase n'a pas pu se charger. Vérifie ta <b>connexion internet</b> et que tu n'ouvres pas le fichier en <b>local (file://)</b> — la synchro nécessite l'app servie en <b>https</b> (ton site Netlify). Recharge la page une fois en ligne.`;
+      corps=`Le SDK Firebase n'a pas pu se charger. Vérifie ta <b>connexion internet</b> et que tu n'ouvres pas le fichier en <b>local (file://)</b>. La synchro nécessite l'app servie en <b>https</b> (ton site Netlify). Recharge la page une fois en ligne.`;
     } else if(cloudInitError==='init'){
       titre='Firebase indisponible';
       corps=`L'initialisation Firebase a échoué. Vérifie que le projet est actif et que la config est correcte, puis recharge la page.`;
