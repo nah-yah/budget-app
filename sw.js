@@ -1,4 +1,7 @@
-const CACHE_NAME = 'budget-app-v3';
+// BUILD_ID est remplacé par le SHA du commit au déploiement (Netlify, voir netlify.toml).
+// Il change donc à chaque déploiement → le navigateur détecte un nouveau service worker.
+const BUILD_ID = '__BUILD_ID__';
+const CACHE_NAME = 'budget-app-' + BUILD_ID;
 const ASSETS = [
   './',
   './index.html',

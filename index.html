@@ -129,6 +129,7 @@ input::placeholder{color:var(--txt3)}
 .item-card{background:linear-gradient(180deg,var(--s1),var(--s2));border:1px solid var(--line);border-radius:15px;padding:13px;margin-bottom:9px;cursor:pointer;transition:transform .12s, border-color .12s;position:relative}
 .item-card:active{transform:scale(.985);border-color:var(--accent-dk)}
 .item-card.cancelled{opacity:.45}
+.item-card.planned{opacity:.74}
 .ic-top{display:flex;align-items:center;gap:11px}
 .ic-ico{width:40px;height:40px;border-radius:12px;flex:none;display:grid;place-items:center;font-size:15px}
 .ic-body{flex:1;min-width:0}
@@ -686,29 +687,45 @@ const monthOffset = (ym,n)=>{ const [y,m]=ym.split('-').map(Number); const d=new
 const esc = s => (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const inMonth = (it,ym)=> (it.date||'').slice(0,7)===ym;
 
-/* ===== Période budgétaire personnalisable =====
-   periodStartDay=1 -> mois calendaire classique.
-   periodStartDay=22 -> la période "2026-06" va du 22 juin (inclus) au 21 juillet (le 22/07 démarre la période suivante). */
-function periodStartDay(){ let d=Math.round((S&&num(S.periodStartDay))||1); if(d<1)d=1; if(d>28)d=28; return d; }
+/* ===== Période budgétaire =====
+   Mode 'calendar' : du 1er au dernier jour du mois (classique).
+   Mode 'income'   : ancrée sur TES dates de revenu. La période du mois M commence le jour
+   où tu entres le revenu-ancre du mois M, et se termine le jour du revenu-ancre du mois M+1.
+   Aucune date n'est codée en dur : les bornes suivent tes saisies de revenus. */
 const pad2=n=>String(n).padStart(2,'0');
-/* Renvoie les bornes ISO de la période (start inclus, end exclu). */
-function periodRange(ym){
-  const sd=periodStartDay();
-  const [y,m]=ym.split('-').map(Number);
-  const start=`${y}-${pad2(m)}-${pad2(sd)}`;
-  const ny=m===12?y+1:y, nm=m===12?1:m+1;
-  const end=`${ny}-${pad2(nm)}-${pad2(sd)}`;
-  return {start,end};
+function periodMode(){ return (S&&S.periodMode==='income')?'income':'calendar'; }
+function periodAnchorCat(){ return (S&&S.periodAnchorCat)||'Salaire'; }
+const firstOfMonth=ym=>{ const [y,m]=ym.split('-').map(Number); return `${y}-${pad2(m)}-01`; };
+/* Date de début de période pour le mois ym : date du 1er revenu-ancre saisi ce mois-là, sinon le 1er du mois. */
+function anchorStartOf(ym){
+  const cat=periodAnchorCat(); let earliest=null;
+  (S.revenus||[]).forEach(r=>{ if(r.categorie===cat && (r.date||'').slice(0,7)===ym){ if(!earliest || r.date<earliest) earliest=r.date; } });
+  return earliest || firstOfMonth(ym);
 }
-/* Un élément (date ISO) est-il dans la période ym ? Identique à inMonth si periodStartDay=1. */
+/* Bornes ISO de la période (start inclus, end exclu). */
+function periodRange(ym){
+  if(periodMode()==='income'){
+    return { start: anchorStartOf(ym), end: anchorStartOf(monthOffset(ym,1)) };
+  }
+  return { start: firstOfMonth(ym), end: firstOfMonth(monthOffset(ym,1)) };
+}
+/* Un élément (date ISO) est-il dans la période ym ? */
 function inPeriod(it,ym){ const d=(it&&it.date)||''; if(!d) return false; const r=periodRange(ym); return d>=r.start && d<r.end; }
+const isoToDate=s=>{ const [y,m,d]=String(s).split('-').map(Number); return new Date(y,(m||1)-1,d||1); };
+/* Clé de période (YYYY-MM) qui CONTIENT aujourd'hui. En mode revenu ce n'est pas forcément le mois calendaire :
+   le 10 juillet appartient à la période "juin" si le salaire de juillet n'est pas encore arrivé. */
+function currentPeriodKey(){
+  const today=todayISO();
+  if(periodMode()!=='income') return today.slice(0,7);
+  const cm=today.slice(0,7);
+  for(let off=0;off>=-3;off--){ const M=monthOffset(cm,off); const r=periodRange(M); if(today>=r.start && today<r.end) return M; }
+  return cm;
+}
 /* Libellé lisible d'une période, ex. "22 juin – 21 juil.". */
 function periodLabelRange(ym){
-  const [sy,sm,sd]=periodRange(ym).start.split('-').map(Number);
-  const startD=new Date(sy,sm-1,sd);
-  const endD=new Date(sy,sm,sd-1); // veille du début de la période suivante
+  const r=periodRange(ym); const sd=isoToDate(r.start), ed=isoToDate(r.end); ed.setDate(ed.getDate()-1);
   const f=d=>d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
-  return `${f(startD)} – ${f(endD)}`;
+  return `${f(sd)} – ${f(ed)}`;
 }
 
 function getR(){ return S.revenus.filter(r=>inPeriod(r,S.currentMonth)); }
@@ -735,51 +752,130 @@ function readAmtBase(amtId){
   const c=readCur(amtId);
   return {montant:Math.round(raw*c.rate*100)/100, devise:c.code, taux:c.rate};
 }
-/* Soldes par compte (cumul de toutes les opérations enregistrées + virements) */
-function accountBalances(){
+/* ===== Progression d'un objectif "au fil de la période" =====
+   e.actuel = total stocké (inclut TOUTES les contributions, même futures pré-saisies).
+   Pour l'affichage, on ne montre que ce qui est atteint À LA FIN de la période courante :
+   part initiale + contributions (epargneDelta) datées avant la fin de période. */
+function goalDeltasUpTo(e, endISO){
+  let s=0; (S.transferts||[]).forEach(t=>{ if(t.epargneId===e.id && (t.date||'')<endISO) s+=num(t.epargneDelta); }); return Math.round(s*100)/100;
+}
+function goalBase(e){ return Math.round((num(e.actuel)-goalDeltasUpTo(e,'9999-12-31'))*100)/100; }
+function goalActuelAsOf(e, ym){ return Math.round((goalBase(e)+goalDeltasUpTo(e, periodRange(ym).end))*100)/100; }
+function goalActuel(e){ return goalActuelAsOf(e, S.currentMonth); }
+/* Progression convertie en devise d'épargne (USD) — pour agréger/comparer des objectifs de devises différentes (la tontine est en HTG). */
+function goalActuelSav(e){ const cur=(e.type==='Tontine')?'HTG':savCur(); return convert(goalActuel(e),cur,savCur()); }
+/* Valeur comptée comme "épargne par objectif" (USD). La tontine n'est comptée qu'une fois "C'est mon tour" pris. */
+function goalSavingsValue(e){ if(e.type==='Tontine' && !e.tourPris) return 0; return goalActuelSav(e); }
+
+/* Soldes par compte, TELS QU'À LA FIN de la période affichée (ym par défaut = période courante). */
+function accountBalances(ym){
+  ym=ym||S.currentMonth;
+  const end=periodRange(ym).end;
   const bal={};
   Object.keys(COMPTES).forEach(c=>{ bal[c]=(S.comptes&&S.comptes[c])?num(S.comptes[c]):0; });
   const add=(c,v)=>{ if(bal[c]!==undefined) bal[c]+=v; };
-  S.revenus.forEach(r=>add(r.compte, num(r.montant)));
-  S.depenses.forEach(d=>{ if(d.statut!=='Annulé') add(d.compte, -num(d.montant)); });
+  S.revenus.forEach(r=>{ if((r.date||'')<end) add(r.compte, num(r.montant)); });
+  S.depenses.forEach(d=>{ if(d.statut!=='Annulé' && (d.date||'')<end) add(d.compte, -num(d.montant)); });
   (S.transferts||[]).forEach(t=>{
-    // Un virement lie a un objectif est deja reflete dans le "montant actuel" de l'objectif
-    // cote compte d'epargne : on n'applique alors que le mouvement sur le compte non-epargne.
+    if((t.date||'')>=end) return;
+    // Un virement lie a un objectif est deja reflete dans le "montant actuel" cote epargne : on n'applique que le cote non-epargne.
     const deSav=isSavingsAccount(t.deCompte) && t.epargneId;
     const versSav=isSavingsAccount(t.versCompte) && t.epargneId;
     if(!deSav) add(t.deCompte,-num(t.montant));
     if(!versSav) add(t.versCompte,num(t.montant));
   });
-  // Le solde d'un compte d'epargne = solde initial + somme des "montants actuels" des objectifs rattaches.
+  // Solde d'un compte d'epargne = solde initial + progression (au fil de la période) des objectifs rattaches.
   (S.epargnes||[]).forEach(e=>{
     const acct=e.compte||(e.type==='Tontine'?'Tontine':'Compte épargne');
     if(isSavingsAccount(acct) && bal[acct]!==undefined){
       const cur=e.type==='Tontine'?'HTG':savCur();
-      bal[acct]+=convert(num(e.actuel),cur,acctCur());
+      bal[acct]+=convert(goalActuelAsOf(e,ym),cur,acctCur());
     }
   });
   return bal;
 }
 function totalNet(){ const b=accountBalances(); return Object.keys(b).reduce((s,c)=>s+b[c],0); }
-/* Checking "du mois" : flux net du Compte courant SUR la période (revenus - dépenses ± virements), sans report. */
-function checkingPeriodNet(ym){
+/* ===== Prévu vs Réel =====
+   Réel/confirmé = revenu validé (valide!==false) et dépense payée (statut==='Payé').
+   Projeté = tout ce qui n'est pas annulé (inclut le prévu non encore validé/payé). */
+function isConfirmedRev(r){ return r.valide!==false; }
+function isConfirmedDep(d){ return d.statut==='Payé'; }
+/* Checking "du mois" : flux net du Compte courant SUR la période. confirmed=true => uniquement le réel. */
+function checkingPeriodNet(ym,confirmed){
   let net=0;
-  S.revenus.forEach(r=>{ if(r.compte==='Compte courant' && inPeriod(r,ym)) net+=num(r.montant); });
-  S.depenses.forEach(d=>{ if(d.compte==='Compte courant' && d.statut!=='Annulé' && inPeriod(d,ym)) net-=num(d.montant); });
+  S.revenus.forEach(r=>{ if(r.compte==='Compte courant' && inPeriod(r,ym) && (!confirmed||isConfirmedRev(r))) net+=num(r.montant); });
+  S.depenses.forEach(d=>{ if(d.compte==='Compte courant' && d.statut!=='Annulé' && inPeriod(d,ym) && (!confirmed||isConfirmedDep(d))) net-=num(d.montant); });
   (S.transferts||[]).forEach(t=>{ if(inPeriod(t,ym)){ if(t.deCompte==='Compte courant') net-=num(t.montant); if(t.versCompte==='Compte courant') net+=num(t.montant); } });
   return Math.round(net*100)/100;
 }
-/* Checking "avec report" : solde cumulé du Compte courant jusqu'à la FIN de la période (report des périodes précédentes inclus). */
-function checkingCarryover(ym){
+/* Checking "avec report" : solde cumulé du Compte courant jusqu'à la FIN de la période. confirmed=true => réel. */
+function checkingCarryover(ym,confirmed){
   const end=periodRange(ym).end;
   let bal=(S.comptes&&S.comptes['Compte courant'])?num(S.comptes['Compte courant']):0;
-  S.revenus.forEach(r=>{ if(r.compte==='Compte courant' && (r.date||'')<end) bal+=num(r.montant); });
-  S.depenses.forEach(d=>{ if(d.compte==='Compte courant' && d.statut!=='Annulé' && (d.date||'')<end) bal-=num(d.montant); });
+  S.revenus.forEach(r=>{ if(r.compte==='Compte courant' && (r.date||'')<end && (!confirmed||isConfirmedRev(r))) bal+=num(r.montant); });
+  S.depenses.forEach(d=>{ if(d.compte==='Compte courant' && d.statut!=='Annulé' && (d.date||'')<end && (!confirmed||isConfirmedDep(d))) bal-=num(d.montant); });
   (S.transferts||[]).forEach(t=>{ if((t.date||'')<end){ if(t.deCompte==='Compte courant') bal-=num(t.montant); if(t.versCompte==='Compte courant') bal+=num(t.montant); } });
   return Math.round(bal*100)/100;
 }
 /* Ce qui restait à la fin de la période précédente (= report entrant). */
-function checkingCarryIn(ym){ return checkingCarryover(monthOffset(ym,-1)); }
+function checkingCarryIn(ym,confirmed){ return checkingCarryover(monthOffset(ym,-1),confirmed); }
+
+/* ===== Récurrence : reconduire automatiquement les entrées récurrentes à chaque période ===== */
+function shiftMonths(dateISO,n){
+  const [y,m,d]=String(dateISO).split('-').map(Number);
+  const t=new Date(y,m-1+n,1); const dim=new Date(t.getFullYear(),t.getMonth()+1,0).getDate();
+  t.setDate(Math.min(d||1,dim));
+  return `${t.getFullYear()}-${pad2(t.getMonth()+1)}-${pad2(t.getDate())}`;
+}
+/* Clé de série pour dédoublonner une même occurrence récurrente dans une période. */
+function seriesKey(it,type){ return type+'|'+String(it.description||'').trim().toLowerCase()+'|'+(it.categorie||'')+'|'+(it.compte||''); }
+function isRecurringRev(r){ return r.frequence && r.frequence!=='Unique'; }
+function isRecurringDep(d){ return !!d.recurrent; }
+/* Combien de périodes entre deux occurrences selon la fréquence (revenus). Dépense récurrente = mensuel. */
+function freqEvery(freq){ return freq==='Annuel'?12:(freq==='Trimestriel'?3:1); }
+/* Nombre d'entrées récurrentes en attente d'être reconduites dans la période ym (aperçu bouton). */
+function pendingRecurring(ym){
+  const revKeys=new Set(S.revenus.filter(r=>inPeriod(r,ym)).map(r=>seriesKey(r,'r')));
+  const depKeys=new Set(S.depenses.filter(d=>inPeriod(d,ym)).map(d=>seriesKey(d,'d')));
+  let n=0;
+  S.revenus.forEach(r=>{ if(isRecurringRev(r)){ const src=monthOffset(ym,-freqEvery(r.frequence)); if(inPeriod(r,src) && !revKeys.has(seriesKey(r,'r'))) { revKeys.add(seriesKey(r,'r')); n++; } } });
+  S.depenses.forEach(d=>{ if(isRecurringDep(d)){ const src=monthOffset(ym,-1); if(inPeriod(d,src) && !depKeys.has(seriesKey(d,'d'))) { depKeys.add(seriesKey(d,'d')); n++; } } });
+  return n;
+}
+/* Génère les entrées récurrentes dues dans la période ym (copiées depuis leur dernière occurrence). Renvoie le nombre créé. */
+function rolloverRecurring(ym){
+  let created=0;
+  const revKeys=new Set(S.revenus.filter(r=>inPeriod(r,ym)).map(r=>seriesKey(r,'r')));
+  // parcourir une copie figée pour ne pas boucler sur les nouvelles créations
+  S.revenus.slice().forEach(r=>{
+    if(!isRecurringRev(r)) return;
+    const src=monthOffset(ym,-freqEvery(r.frequence));
+    if(!inPeriod(r,src)) return;
+    const k=seriesKey(r,'r'); if(revKeys.has(k)) return;
+    revKeys.add(k);
+    S.revenus.push({...r,id:uid(),date:shiftMonths(r.date,freqEvery(r.frequence)),valide:false});
+    created++;
+  });
+  const depKeys=new Set(S.depenses.filter(d=>inPeriod(d,ym)).map(d=>seriesKey(d,'d')));
+  S.depenses.slice().forEach(d=>{
+    if(!isRecurringDep(d)) return;
+    const src=monthOffset(ym,-1);
+    if(!inPeriod(d,src)) return;
+    const k=seriesKey(d,'d'); if(depKeys.has(k)) return;
+    depKeys.add(k);
+    S.depenses.push({...d,id:uid(),date:shiftMonths(d.date,1),statut:'En attente'});
+    created++;
+  });
+  return created;
+}
+/* Action manuelle : reconduire les récurrents dans la période affichée. */
+function doRollover(){
+  const n=rolloverRecurring(S.currentMonth);
+  if(!S.rolledOver) S.rolledOver={};
+  S.rolledOver[S.currentMonth]=true;
+  save(); renderAll();
+  toast(n>0?`${n} entrée(s) récurrente(s) ajoutée(s)`:'Aucune nouvelle entrée récurrente à ajouter', n>0?'ok':'info');
+}
 function accountBalancesCard(){
   const bal=accountBalances();
   const rows=Object.keys(COMPTES).map(c=>{
@@ -929,27 +1025,30 @@ function contributeToGoal(id){
   e.actuel=Math.round((num(e.actuel)+contrib)*100)/100;
   save(); renderAll(); toast('Contribution de '+fmtGoal(e,contrib)+' enregistree (sortie du checking)','ok');
 }
-/* Tontine - c'est mon tour : la cagnotte revient vers le checking (rentree/revenu), l'objectif est remis a zero. */
+/* Tontine - c'est mon tour : le pot est encaissé comme REVENU (Autre revenu) dans la période affichée.
+   Le checking et les soldes se mettent à jour automatiquement. */
 function myTurn(id){
   const e=S.epargnes.find(x=>x.id===id); if(!e) return;
   const pot=num(e.objectif);
   if(pot<=0) return toast('Definis le montant du tour (objectif) pour cette tontine','err');
   if(e.tourPris) return toast('Tu as deja recu ton tour pour ce cycle','err');
-  const acct=e.compte||(e.type==='Tontine'?'Tontine':'Compte épargne');
-  const amt=Math.round(convert(pot,'HTG',acctCur())*100)/100;
-  S.transferts.push({id:uid(),date:todayISO(),montant:amt,deCompte:acct,versCompte:'Compte courant',epargneId:id,description:'Tontine - mon tour',devise:acctCur(),taux:1,amountType:'fixe',contribPct:0});
+  const amt=Math.round(convert(pot,'HTG',acctCur())*100)/100; // en devise des comptes
+  const today=todayISO();
+  const date=inPeriod({date:today},S.currentMonth)?today:periodRange(S.currentMonth).start; // dans la période affichée
+  const rc=RC['Autre revenu']?'Autre revenu':Object.keys(RC)[0];
+  S.revenus.push({id:uid(),date:date,description:'Tontine — mon tour'+(e.nom&&e.nom!=='Tontine'?' ('+e.nom+')':''),categorie:rc,montant:amt,devise:acctCur(),taux:1,frequence:'Unique',compte:'Compte courant',valide:true,notes:'',tontineId:id});
   e.tourPris=true;
-  save(); renderAll(); toast('Ton tour ! '+fmt(pot)+' encaisses dans le checking. Continue de cotiser jusqu\'a la fin du cycle.','ok');
+  save(); renderAll(); toast('Ton tour ! '+fmt(amt)+' ajouté aux revenus (Autre revenu). Checking mis à jour.','ok');
 }
-/* Annuler un tour pris par erreur : retire le virement "mon tour" et enleve le badge "Tour pris". */
+/* Annuler un tour pris par erreur : retire le revenu "mon tour" (et un éventuel ancien virement) + enleve le badge. */
 function undoMyTurn(id){
   const e=S.epargnes.find(x=>x.id===id); if(!e) return;
-  // retire le dernier virement "Tontine - mon tour" lie a cette tontine
-  let idx=-1;
-  (S.transferts||[]).forEach((t,i)=>{ if(t.epargneId===id && t.description==='Tontine - mon tour') idx=i; });
-  if(idx>=0) S.transferts.splice(idx,1);
+  let idx=-1; (S.revenus||[]).forEach((r,i)=>{ if(r.tontineId===id) idx=i; });
+  if(idx>=0) S.revenus.splice(idx,1);
+  let tidx=-1; (S.transferts||[]).forEach((t,i)=>{ if(t.epargneId===id && t.description==='Tontine - mon tour') tidx=i; }); // compat ancien format
+  if(tidx>=0) S.transferts.splice(tidx,1);
   e.tourPris=false;
-  save(); renderAll(); toast('Tour annule — le badge « Tour pris » a ete retire','info');
+  save(); renderAll(); toast('Tour annulé — revenu retiré et badge « Tour pris » enlevé','info');
 }
 function setTransType(t){
   $('#t_amountType').value=t;
@@ -971,19 +1070,21 @@ function updateTransPreview(){
 function chip(val,cfg){ if(!cfg) return `<span class="chip" style="color:#A89580;background:rgba(168,149,128,.14)">${esc(val)}</span>`; return `<span class="chip" style="color:${cfg.color};background:${cfg.color}22"><i class="fa-solid fa-${cfg.icon}"></i>${esc(val)}</span>`; }
 
 function seededRand(str){ let h=2166136261; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619); } return ((h>>>0)%1000)/1000; }
-function getHist(){
-  const res=[]; const cur=S.currentMonth;
-  const baseR=totalR()||2400, baseD=totalD()||1800;
-  for(let i=5;i>=0;i--){
+/* Totaux RÉELS d'une période (revenus / dépenses hors annulées), période-aware. */
+function periodTotals(ym){
+  let r=0,d=0;
+  S.revenus.forEach(x=>{ if(inPeriod(x,ym)) r+=num(x.montant); });
+  S.depenses.forEach(x=>{ if(x.statut!=='Annulé' && inPeriod(x,ym)) d+=num(x.montant); });
+  return {revenus:Math.round(r),depenses:Math.round(d)};
+}
+/* Historique des N dernières périodes (données réelles ; S.historique fait foi s'il existe). */
+function getHist(n){
+  n=n||statsRange||6; const res=[]; const cur=S.currentMonth;
+  for(let i=n-1;i>=0;i--){
     const m=monthOffset(cur,-i);
-    const h=S.historique.find(x=>x.mois===m);
-    if(h){ res.push({mois:m,revenus:h.revenus,depenses:h.depenses}); }
-    else if(m===cur){ res.push({mois:m,revenus:Math.round(totalR()),depenses:Math.round(totalD())}); }
-    else {
-      const r=seededRand(m+'r'), d=seededRand(m+'d');
-      const rj=0.86+r*0.28, dj=0.82+d*0.36;
-      res.push({mois:m,revenus:Math.round(baseR*rj),depenses:Math.round(baseD*dj)});
-    }
+    const h=S.historique&&S.historique.find(x=>x.mois===m);
+    if(h) res.push({mois:m,revenus:h.revenus,depenses:h.depenses});
+    else { const t=periodTotals(m); res.push({mois:m,revenus:t.revenus,depenses:t.depenses}); }
   }
   return res;
 }
@@ -995,6 +1096,17 @@ function catBreakdown(){
   return Object.keys(map).map(k=>({cat:k,val:map[k],color:(CC[k]||{color:'#A89580'}).color,icon:(CC[k]||{icon:'ellipsis'}).icon}))
     .sort((a,b)=>b.val-a.val);
 }
+/* Répartition des dépenses par catégorie sur les N dernières périodes (pour l'onglet Stats). */
+function catBreakdownRange(n){
+  n=n||statsRange||6;
+  const start=periodRange(monthOffset(S.currentMonth,-(n-1))).start;
+  const end=periodRange(S.currentMonth).end;
+  const map={};
+  S.depenses.forEach(d=>{ if(d.statut!=='Annulé'){ const dt=d.date||''; if(dt>=start && dt<end){ const k=d.categorie||'Autres dépenses'; map[k]=(map[k]||0)+num(d.montant); } } });
+  return Object.keys(map).map(k=>({cat:k,val:map[k],color:(CC[k]||{color:'#A89580'}).color,icon:(CC[k]||{icon:'ellipsis'}).icon}))
+    .sort((a,b)=>b.val-a.val);
+}
+function totalExpensesRange(n){ return catBreakdownRange(n).reduce((s,o)=>s+o.val,0); }
 function spentByCat(){
   const map={}; getD().forEach(d=>{ const k=d.categorie||'Autres dépenses'; map[k]=(map[k]||0)+num(d.montant); }); return map;
 }
@@ -1002,7 +1114,9 @@ function spentByCat(){
 /* --- Budget global, journalier & série (streak) --- */
 function totalBudget(){ return S.budgets.reduce((s,b)=>s+num(b.montant),0); }
 function daysInMonth(ym){ const [y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate(); }
-function dailyBudget(){ const dm=daysInMonth(S.currentMonth); return dm? totalBudget()/dm : 0; }
+/* Nombre de jours de la période (suit les bornes réelles, pas le mois calendaire). */
+function periodDays(ym){ const r=periodRange(ym); return Math.max(1, Math.round((isoToDate(r.end)-isoToDate(r.start))/86400000)); }
+function dailyBudget(){ const dm=periodDays(S.currentMonth); return dm? totalBudget()/dm : 0; }
 function dailySpend(dateStr){ return S.depenses.filter(d=>(d.date||'').slice(0,10)===dateStr && d.statut!=='Annulé').reduce((s,d)=>s+num(d.montant),0); }
 function spendToday(){ return dailySpend(todayISO()); }
 function streakCount(){
@@ -1020,18 +1134,20 @@ function dayDetail(ds){
   toast(`${fmtDate(ds)} : ${fmt(sp)}${over?' · dépasse l\'objectif':' · sous le budget'}`,over?'err':'ok');
 }
 function calendarCard(){
-  const ym=S.currentMonth, [y,m]=ym.split('-').map(Number);
-  const firstDow=(new Date(y,m-1,1).getDay()+6)%7, dim=daysInMonth(ym), db=dailyBudget();
+  const ym=S.currentMonth, db=dailyBudget();
+  const r=periodRange(ym), startD=isoToDate(r.start), endD=isoToDate(r.end); // end exclu
+  const firstDow=(startD.getDay()+6)%7, today=todayISO();
   const dow=['L','M','M','J','V','S','D'], cells=[];
   for(let i=0;i<firstDow;i++) cells.push('<div class="cal-cell empty"></div>');
-  for(let d=1;d<=dim;d++){
-    const ds=`${ym}-${String(d).padStart(2,'0')}`, sp=dailySpend(ds);
+  for(let d=new Date(startD); d<endD; d.setDate(d.getDate()+1)){
+    const ds=`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`, sp=dailySpend(ds);
     const cls = sp<=0?'':(db>0&&sp>db?'over':'under');
-    const today = ds===todayISO()?'today':'', fut = ds>todayISO()?'future':'';
-    cells.push(`<div class="cal-cell ${cls} ${today} ${fut}" onclick="dayDetail('${ds}')"><span>${d}</span>${sp>0?`<span class="amt">${Math.round(sp)}</span>`:''}</div>`);
+    const isToday = ds===today?'today':'', fut = ds>today?'future':'';
+    cells.push(`<div class="cal-cell ${cls} ${isToday} ${fut}" onclick="dayDetail('${ds}')"><span>${d.getDate()}</span>${sp>0?`<span class="amt">${Math.round(sp)}</span>`:''}</div>`);
   }
+  const titre = periodMode()==='calendar' ? 'Calendrier du mois' : 'Calendrier de la période';
   return `<div class="card cal-card">
-    <h3><i class="fa-solid fa-calendar-days"></i>Calendrier du mois<span class="more">objectif ${fmt(db)}/j</span></h3>
+    <h3><i class="fa-solid fa-calendar-days"></i>${titre}<span class="more">objectif ${fmt(db)}/j</span></h3>
     <div class="cal-grid">${dow.map(w=>`<div class="cal-dow">${w}</div>`).join('')}${cells.join('')}</div>
     <div class="cal-legend"><span><span class="ld" style="background:rgba(143,181,115,.55)"></span> Sous le budget</span><span><span class="ld" style="background:rgba(217,119,87,.6)"></span> Dépasse</span><span><span class="ld" style="background:var(--s1);border:1px solid var(--line)"></span> Sans dépense</span></div>
   </div>`;
@@ -1326,6 +1442,7 @@ let S=null;
 const KEY='budget_app_v4';
 let currentTab='dashboard';
 let statsSub='budget';
+let statsRange=6; // nombre de périodes affichées dans les graphiques d'évolution (3 / 6 / 12)
 let editingId=null;
 const charts={};
 let vF={q:'',cat:'Tous'}, dF={q:'',cat:'Tous',stat:'Tous'};
@@ -1549,15 +1666,17 @@ function renderDashboard(){
   const chkCarry=checkingCarryover(S.currentMonth); // checking avec report
   const chkNet=checkingPeriodNet(S.currentMonth);   // checking du mois (sans report)
   const chkIn=checkingCarryIn(S.currentMonth);       // report entrant (fin période précédente)
+  const chkReal=checkingCarryover(S.currentMonth,true); // solde réel (validé/payé uniquement)
   const chk=chkCarry;
-  const epTotal=S.epargnes.reduce((s,e)=>s+num(e.actuel),0);
+  const pendRec=pendingRecurring(S.currentMonth);    // récurrents à reconduire
+  const epTotal=S.epargnes.reduce((s,e)=>s+goalActuel(e),0);
   const sb=spentByCat();
   const alerts=S.budgets.map(b=>{
     const spent=sb[b.categorie]||0; const pct=b.montant>0?(spent/b.montant*100):0;
     return {cat:b.categorie,budget:num(b.montant),spent,pct,cc:CC[b.categorie]||{color:'#A89580',icon:'ellipsis'}};
   }).filter(a=>a.pct>=90);
   const streak=streakCount(), db=dailyBudget(), todaySp=spendToday();
-  const isCurReal = S.currentMonth===curMonth();
+  const isCurReal = S.currentMonth===currentPeriodKey(); // la période affichée contient-elle aujourd'hui ?
   let state='happy';
   if(bal<-300) state='sad';
   else if(bal<0 || alerts.length>=2) state='worried';
@@ -1635,10 +1754,27 @@ function renderDashboard(){
         <div style="flex:1">
           <div style="font-size:11px;color:var(--txt2)">Avec report</div>
           <div style="font-family:'Space Grotesk';font-weight:700;font-size:17px;color:${chkCarry>=0?'var(--accent-lt)':'var(--bad)'}">${fmt(chkCarry)}</div>
-          <div style="font-size:10px;color:var(--txt3)">solde réel</div>
+          <div style="font-size:10px;color:var(--txt3)">projeté (tout)</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <div style="flex:1;background:var(--s2);border:1px solid var(--line);border-radius:11px;padding:9px 11px">
+          <div style="font-size:10.5px;color:var(--txt2)"><i class="fa-solid fa-circle-check" style="color:var(--good)"></i> Réel (validé / payé)</div>
+          <div style="font-family:'Space Grotesk';font-weight:700;font-size:15.5px;color:${chkReal>=0?'var(--txt)':'var(--bad)'}">${fmt(chkReal)}</div>
+        </div>
+        <div style="flex:1;background:var(--s2);border:1px solid var(--line);border-radius:11px;padding:9px 11px">
+          <div style="font-size:10.5px;color:var(--txt2)"><i class="fa-solid fa-hourglass-half" style="color:var(--warn)"></i> Projeté (tout inclus)</div>
+          <div style="font-family:'Space Grotesk';font-weight:700;font-size:15.5px;color:${chkCarry>=0?'var(--txt)':'var(--bad)'}">${fmt(chkCarry)}</div>
         </div>
       </div>
     </div>
+    ${pendRec>0?`<div class="card" style="background:linear-gradient(135deg,rgba(224,164,88,.14),rgba(212,165,116,.1));border-color:rgba(224,164,88,.4)">
+      <div style="display:flex;align-items:center;gap:12px">
+        <i class="fa-solid fa-arrows-rotate" style="font-size:20px;color:var(--warn)"></i>
+        <div style="flex:1"><div style="font-weight:600;font-size:13.5px">${pendRec} récurrent(s) à reconduire</div><div style="font-size:11.5px;color:var(--txt3)">Salaire, loyer, abonnements… pour cette période</div></div>
+        <button class="btn" style="margin:0;width:auto;padding:9px 14px;font-size:12.5px" onclick="doRollover()"><i class="fa-solid fa-plus"></i> Reconduire</button>
+      </div>
+    </div>`:''}
     ${(function(){
       const bT=totalBudget(), spent=totalD(), rest=bT-spent, pct=bT>0?Math.min(100,spent/bT*100):0, over=spent>bT&&bT>0;
       return `<div class="card" style="background:linear-gradient(135deg,var(--s1),var(--s2))">
@@ -1698,10 +1834,11 @@ function renderRevenusList(){
   }).sort((a,b)=>(a.date<b.date?1:-1));
   list.innerHTML = items.length? items.map(r=>{
     const rc=RC[r.categorie]||{color:'#A89580',icon:'coins'};
-    return `<div class="item-card" onclick="openSheet('revenu','${r.id}')">
+    const prevu=r.valide===false;
+    return `<div class="item-card ${prevu?'planned':''}" onclick="openSheet('revenu','${r.id}')">
       <div class="ic-top">
         <div class="ic-ico" style="background:${rc.color}22;color:${rc.color}"><i class="fa-solid fa-${rc.icon}"></i></div>
-        <div class="ic-body"><div class="ic-desc">${esc(r.description)}</div>
+        <div class="ic-body"><div class="ic-desc">${esc(r.description)}${prevu?' <span style="font-size:10px;font-weight:600;color:var(--warn);background:rgba(224,164,88,.16);padding:1px 6px;border-radius:99px;vertical-align:middle">Prévu</span>':''}</div>
           <div class="ic-meta"><span>${fmtDate(r.date)}</span>${r.frequence?`<span>·</span><span>${esc(r.frequence)}</span>`:''}${r.compte?`<span>·</span><span>${esc(r.compte)}</span>`:''}</div></div>
         <div class="ic-amt pos" style="text-align:right">+${amtLabel(r.montant,r.devise,r.taux)}${r.devise&&r.devise!==baseCur()?`<div style="font-size:10px;font-weight:500;color:var(--txt3)">≈ ${fmt(r.montant)}</div>`:''}</div>
         <button class="ic-del" title="Supprimer ce revenu" aria-label="Supprimer" onclick="event.stopPropagation();askDeleteRevenu('${r.id}')"><i class="fa-solid fa-trash-can"></i></button>
@@ -1763,10 +1900,11 @@ function contribChip(e){
 function renderEpargne(){
   const items=S.epargnes;
   const goalHtml = items.length? items.map(e=>{
-    const pct=e.objectif>0?Math.min(100,e.actuel/e.objectif*100):0;
-    const done=e.actuel>=e.objectif;
+    const actuel=goalActuel(e); // progression au fil de la période affichée (pas le total futur)
+    const pct=e.objectif>0?Math.min(100,actuel/e.objectif*100):0;
+    const done=actuel>=e.objectif;
     const contrib=epargneContribSav(e);
-    const monthsLeft=contrib>0?Math.max(0,Math.ceil((e.objectif-e.actuel)/contrib)):0;
+    const monthsLeft=contrib>0?Math.max(0,Math.ceil((e.objectif-actuel)/contrib)):0;
     const ico=TI[e.type]||'box';
     const isTontine=e.type==='Tontine';
     const tourChip=isTontine?(e.tourPris
@@ -1782,7 +1920,7 @@ function renderEpargne(){
       </div>
       <div class="progress"><div class="progress-bar" style="width:${pct}%;background:${barColor}"></div></div>
       <div class="ep-foot">
-        <span>${isTontine?`<b>${fmtGoal(e,e.actuel)}</b> cotises / ${fmtGoal(e,e.objectif)} (ta part)`:`<b>${fmtGoal(e,e.actuel)}</b> / ${fmtGoal(e,e.objectif)}`}</span>
+        <span>${isTontine?`<b>${fmtGoal(e,actuel)}</b> cotises / ${fmtGoal(e,e.objectif)} (ta part)`:`<b>${fmtGoal(e,actuel)}</b> / ${fmtGoal(e,e.objectif)}`}</span>
         <span>${done?(isTontine?'Cycle complete':'Objectif atteint'):`+${fmtGoal(e,contrib)}/mois · ${monthsLeft} mois`}</span>
       </div>
       <div class="ic-chips" style="margin-top:9px">${tourChip}${contribChip(e)}${posInfo?`<span class="chip" style="color:var(--txt3);background:rgba(168,149,128,.14)"><i class="fa-solid fa-list-ol"></i>${posInfo}</span>`:''}${e.devise&&e.devise!==savCur()?`<span class="chip" style="color:var(--txt3);background:rgba(168,149,128,.14)"><i class="fa-solid fa-coins"></i>${e.devise}</span>`:''}</div>
@@ -1848,15 +1986,25 @@ function renderBudget(){
       <div class="gap" style="color:${tbc.col}">${Math.round(totPct)}% · ${totS-totB>=0?'+'+fmt(totS-totB):fmt(totS-totB)}</div></div></div>
   </div>`;
 }
+function setStatsRange(n){ statsRange=n; renderGraphsHTML(); refreshCharts('stats'); }
+function rangePills(){
+  return `<div class="pill-row" style="margin:0 0 4px">`+[3,6,12].map(n=>`<button class="pill ${statsRange===n?'active':''}" onclick="setStatsRange(${n})">${n} mois</button>`).join('')+`</div>`;
+}
 function renderGraphsHTML(){
   $('#statsContent').innerHTML=`
-    <div class="card"><h3><i class="fa-solid fa-chart-pie"></i>Dépenses par catégorie</h3>
-      <div class="ring-wrap"><canvas id="gRing"></canvas><div class="ring-center"><span class="rc-lbl">Dépenses</span><span class="rc-val">${fmt(totalExpensesPure())}</span></div></div></div>
-    <div class="card"><h3><i class="fa-solid fa-chart-column"></i>Revenus vs Dépenses (6 mois)</h3><div class="chart-box"><canvas id="gBar"></canvas></div></div>
-    <div class="card"><h3><i class="fa-solid fa-wave-square"></i>Solde cumulé (6 mois)</h3><div class="chart-box"><canvas id="gLine"></canvas></div></div>
+    ${rangePills()}
+    <div class="card"><h3><i class="fa-solid fa-chart-pie"></i>Dépenses par catégorie (${statsRange} mois)</h3>
+      <div class="ring-wrap"><canvas id="gRing"></canvas><div class="ring-center"><span class="rc-lbl">Dépenses</span><span class="rc-val">${fmt(totalExpensesRange(statsRange))}</span></div></div>
+      <div id="gRingLegend"></div></div>
+    <div class="card"><h3><i class="fa-solid fa-chart-column"></i>Revenus vs Dépenses (${statsRange} mois)</h3><div class="chart-box"><canvas id="gBar"></canvas></div></div>
+    <div class="card"><h3><i class="fa-solid fa-money-bill-trend-up"></i>Dépenses par mois (${statsRange} mois)</h3><div class="chart-box"><canvas id="gDepMonth"></canvas></div></div>
+    <div class="card"><h3><i class="fa-solid fa-wave-square"></i>Solde cumulé (${statsRange} mois)</h3><div class="chart-box"><canvas id="gLine"></canvas></div></div>
     <div class="card"><h3><i class="fa-solid fa-piggy-bank"></i>Épargne par objectif</h3>
-      <div class="ring-wrap"><canvas id="gEp"></canvas><div class="ring-center"><span class="rc-lbl">Total</span><span class="rc-val">${fmtS(S.epargnes.reduce((s,e)=>s+num(e.actuel),0))}</span></div></div></div>`;
+      <div class="ring-wrap"><canvas id="gEp"></canvas><div class="ring-center"><span class="rc-lbl">Total</span><span class="rc-val">${fmtS(S.epargnes.reduce((s,e)=>s+goalSavingsValue(e),0))}</span></div></div>
+      <div id="gEpLegend"></div></div>`;
 }
+/* Légende HTML (pastille couleur + nom + montant) pour un donut. */
+function legendHTML(data,fmtFn){ fmtFn=fmtFn||fmt; if(!data||!data.length) return ''; return data.map(d=>`<div class="lg-row"><span class="dot" style="background:${d.color}"></span><span class="nm">${d.icon?`<i class="fa-solid fa-${d.icon}" style="color:${d.color}"></i> `:''}${esc(d.cat)}</span><span class="amt">${fmtFn(d.val)}</span></div>`).join(''); }
 
 function emptyBox(t,ic){ return `<div class="empty"><i class="fa-solid fa-${ic}"></i><p>${t}</p></div>`; }
 
@@ -1869,20 +2017,21 @@ Chart.defaults.borderColor='rgba(212,165,116,.08)';
 function destroy(name){ if(charts[name]){ charts[name].destroy(); delete charts[name]; } }
 function destroyAll(){ Object.keys(charts).forEach(destroy); }
 
-function makeRing(canvasId,data){
+function makeRing(canvasId,data,fmtFn){
+  fmtFn=fmtFn||fmt;
   destroy(canvasId); const el=document.getElementById(canvasId); if(!el) return;
   charts[canvasId]=new Chart(el,{type:'doughnut',
     data:{labels:data.map(d=>d.cat),datasets:[{data:data.map(d=>d.val),backgroundColor:data.map(d=>d.color),borderColor:'#FBF6EC',borderWidth:3,hoverOffset:6}]},
-    options:{cutout:'70%',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.label}: ${fmt(c.raw)}`}}},animation:{duration:700}}
+    options:{cutout:'70%',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtFn(c.raw)}`}}},animation:{duration:700}}
   });
 }
 function renderDashCharts(){
   const ds=catBreakdown();
   makeRing('dashRing',ds);
-  const h=getHist();
+  const h=getHist(6);
   destroy('dashTrend'); const el=$('#dashTrend'); if(el){
     charts.dashTrend=new Chart(el,{type:'line',
-      data:{labels:h.map(x=>monthLabel(x.moi).slice(0,3)),datasets:[
+      data:{labels:h.map(x=>monthLabel(x.mois).slice(0,3)),datasets:[
         {label:'Revenus',data:h.map(x=>x.revenus),borderColor:'#5C8A4A',backgroundColor:'rgba(92,138,74,.15)',tension:.4,fill:true,pointRadius:0,borderWidth:2.5},
         {label:'Dépenses',data:h.map(x=>x.depenses),borderColor:'#C0563A',backgroundColor:'rgba(192,86,58,.13)',tension:.4,fill:true,pointRadius:0,borderWidth:2.5}
       ]},
@@ -1897,26 +2046,35 @@ function lineOpts(legend){
 }
 function renderGraphCharts(){
   if(statsSub!=='graphs') return;
-  makeRing('gRing',catBreakdown());
+  const cats=catBreakdownRange(statsRange);
+  makeRing('gRing',cats);
+  { const lg=$('#gRingLegend'); if(lg) lg.innerHTML=legendHTML(cats,fmt); }
   const h=getHist();
+  const labels=h.map(x=>monthLabel(x.mois).slice(0,3));
   destroy('gBar'); const eb=$('#gBar');
   if(eb) charts.gBar=new Chart(eb,{type:'bar',
-    data:{labels:h.map(x=>monthLabel(x.moi).slice(0,3)),datasets:[
+    data:{labels:labels,datasets:[
       {label:'Revenus',data:h.map(x=>x.revenus),backgroundColor:'#5C8A4A',borderRadius:5},
       {label:'Dépenses',data:h.map(x=>x.depenses),backgroundColor:'#C0563A',borderRadius:5}]},
     options:lineOpts(true)});
+  // dépenses par mois (barres)
+  destroy('gDepMonth'); const edm=$('#gDepMonth');
+  if(edm) charts.gDepMonth=new Chart(edm,{type:'bar',
+    data:{labels:labels,datasets:[{label:'Dépenses',data:h.map(x=>x.depenses),backgroundColor:'#C0563A',borderRadius:5}]},
+    options:lineOpts(false)});
   // solde cumulé
   let cum=0; const cumData=h.map(x=>{ cum+=(x.revenus-x.depenses); return cum; });
   destroy('gLine'); const el=$('#gLine'); if(el){
     const ctx=el.getContext('2d'); const g=ctx.createLinearGradient(0,0,0,170); g.addColorStop(0,'rgba(154,96,40,.2)'); g.addColorStop(1,'rgba(154,96,40,0)');
     charts.gLine=new Chart(el,{type:'line',
-      data:{labels:h.map(x=>monthLabel(x.moi).slice(0,3)),datasets:[{label:'Solde cumulé',data:cumData,borderColor:'#9A6028',backgroundColor:g,tension:.4,fill:true,borderWidth:2.5,
+      data:{labels:labels,datasets:[{label:'Solde cumulé',data:cumData,borderColor:'#9A6028',backgroundColor:g,tension:.4,fill:true,borderWidth:2.5,
         pointBackgroundColor:cumData.map(v=>v<0?'#C0563A':'#9A6028'),pointBorderColor:'#FBF6EC',pointRadius:4,pointHoverRadius:6}]},
       options:lineOpts(false)});
   }
-  // épargne
-  const ep=S.epargnes.map(e=>({cat:e.nom,val:num(e.actuel),color:['#D4A574','#8FB573','#5B9EA0','#C9876B','#E0A458','#B08CA8','#8B6F47','#C9B68E'][S.epargnes.indexOf(e)%8],icon:'piggy-bank'}));
-  makeRing('gEp',ep);
+  // épargne par objectif (tontine comptée seulement si tour pris)
+  const ep=S.epargnes.map((e,i)=>({cat:e.nom,val:Math.round(goalSavingsValue(e)*100)/100,color:['#D4A574','#8FB573','#5B9EA0','#C9876B','#E0A458','#B08CA8','#8B6F47','#C9B68E'][i%8],icon:e.type==='Tontine'?'users':'piggy-bank'})).filter(o=>o.val>0);
+  makeRing('gEp',ep,fmtS);
+  { const lg=$('#gEpLegend'); if(lg) lg.innerHTML=ep.length?legendHTML(ep,fmtS):'<div style="text-align:center;font-size:12px;color:var(--txt3);padding:8px">Aucune épargne à afficher pour cette période.</div>'; }
 }
 function refreshCharts(tab){
   destroyAll();
@@ -1961,7 +2119,7 @@ function renderTab(t){
   else if(t==='stats') renderStats();
 }
 function renderAll(){
-  $('#monthLabel').textContent = periodStartDay()===1 ? monthLabel(S.currentMonth) : periodLabelRange(S.currentMonth);
+  $('#monthLabel').textContent = periodMode()==='calendar' ? monthLabel(S.currentMonth) : periodLabelRange(S.currentMonth);
   $('#yearLabel').textContent=yearLabel(S.currentMonth);
   renderDashboard(); renderRevenus(); renderDepenses(); renderEpargne(); renderStats();
   setAppBar();
@@ -1981,7 +2139,7 @@ function openSheet(mode,id){
   else if(mode==='transfert'){ title.textContent=id?'Modifier le virement':'Nouveau virement'; body.innerHTML=transfertForm(id); setTimeout(()=>{initCurBlock('t_montant');updateTransPreview();},0); }
   else if(mode==='budget'){ title.textContent='Budgets du mois'; body.innerHTML=budgetForm(); }
   else if(mode==='more'){ title.textContent='Options'; body.innerHTML=moreSheet(); }
-  else if(mode==='settings'){ title.textContent='Réglages'; body.innerHTML=settingsHTML(); }
+  else if(mode==='settings'){ title.textContent='Réglages'; body.innerHTML=settingsHTML(); setTimeout(previewPeriod,0); }
   else if(mode==='convert'){ title.textContent='Convertisseur de devises'; body.innerHTML=converterHTML()+`<div style="font-size:11px;color:var(--txt3);text-align:center;margin-top:4px">La devise principale se choisit dans les Réglages.</div>`; setTimeout(updateConvert,40); }
   else if(mode==='install'){ title.textContent='Installer sur téléphone'; body.innerHTML=installHTML(); }
   $('#backdrop').classList.add('open'); $('#sheet').classList.add('open');
@@ -2098,10 +2256,16 @@ function settingsHTML(){
   <div style="font-size:12px;color:var(--txt2);margin:-4px 0 16px;line-height:1.5">Les comptes sont en <b>${ac}</b> et l'épargne en <b>${sc}</b>. Les montants saisis dans une autre devise sont convertis automatiquement. Changer une devise reconvertit les donnees existantes.</div>
   <button class="btn ghost" style="margin:0 0 16px" onclick="openRatePrompt(rateKeyCurrencies())"><i class="fa-solid fa-arrows-rotate"></i> Mettre a jour les taux du jour</button>
   <div class="section-title">Période budgétaire</div>
-  <div class="field"><label>Jour de début de période</label>
-    <select class="select" id="set_pstart" onchange="previewPeriod()">${Array.from({length:28},(_,i)=>i+1).map(d=>`<option value="${d}" ${d===periodStartDay()?'selected':''}>${d===1?'1er (mois calendaire)':'le '+d+' du mois'}</option>`).join('')}</select>
+  <div class="field"><label>Type de période</label>
+    <select class="select" id="set_pmode" onchange="previewPeriod()">
+      <option value="calendar" ${periodMode()==='calendar'?'selected':''}>Mois calendaire (1er au dernier jour)</option>
+      <option value="income" ${periodMode()==='income'?'selected':''}>Basée sur mes revenus (salaire à salaire)</option>
+    </select>
   </div>
-  <div id="periodPreview" style="font-size:11.5px;color:var(--txt2);margin:-4px 0 16px;line-height:1.5">${periodStartDay()===1?'Ta période suit le mois calendaire (1er au dernier jour).':`Ta période actuelle : <b style="color:var(--accent-lt)">${periodLabelRange(S.currentMonth)}</b>. Pratique si tu es payé(e) vers le ${periodStartDay()} du mois.`}</div>
+  <div class="field" id="anchorCatField" style="display:${periodMode()==='income'?'block':'none'}"><label>Revenu qui démarre la période</label>
+    <select class="select" id="set_anchorcat" onchange="previewPeriod()">${Object.keys(RC).map(c=>`<option value="${c}" ${c===periodAnchorCat()?'selected':''}>${c}</option>`).join('')}</select>
+  </div>
+  <div id="periodPreview" style="font-size:11.5px;color:var(--txt2);margin:-4px 0 16px;line-height:1.5"></div>
   <div class="section-title">Soldes initiaux des comptes (${ac})</div>`+
   Object.keys(COMPTES).map(c=>{
     const ic=COMPTES[c], bal=(S.comptes&&S.comptes[c])?S.comptes[c]:0;
@@ -2137,16 +2301,23 @@ function saveSettings(){
     (S.transferts||[]).forEach(t=>{ if(t.epargneDelta) t.epargneDelta=Math.round(num(t.epargneDelta)*f*100)/100; }); // garder le delta aligné sur "actuel"
     S.savingsCurrency=newSv;
   }
-  const ps=$('#set_pstart'); if(ps){ let sd=Math.round(num(ps.value))||1; if(sd<1)sd=1; if(sd>28)sd=28; S.periodStartDay=sd; }
+  const pm=$('#set_pmode'); if(pm) S.periodMode=(pm.value==='income')?'income':'calendar';
+  const ac=$('#set_anchorcat'); if(ac && RC[ac.value]) S.periodAnchorCat=ac.value;
   save(); closeSheet(); renderAll(); toast('Reglages enregistres','ok');
 }
 function previewPeriod(){
-  const sel=$('#set_pstart'), el=$('#periodPreview'); if(!sel||!el) return;
-  let sd=Math.round(num(sel.value))||1; if(sd<1)sd=1; if(sd>28)sd=28;
-  if(sd===1){ el.innerHTML='Ta période suit le mois calendaire (1er au dernier jour).'; return; }
-  const [y,m]=S.currentMonth.split('-').map(Number);
+  const pm=$('#set_pmode'), el=$('#periodPreview'); if(!el) return;
+  const mode=pm?pm.value:periodMode();
+  const acField=$('#anchorCatField'); if(acField) acField.style.display=(mode==='income')?'block':'none';
+  if(mode!=='income'){ el.innerHTML='Ta période suit le mois calendaire (1er au dernier jour du mois).'; return; }
+  // aperçu avec les valeurs sélectionnées (sans enregistrer)
+  const cat=($('#set_anchorcat')&&$('#set_anchorcat').value)||periodAnchorCat();
+  const startOf=ym=>{ let e=null; (S.revenus||[]).forEach(r=>{ if(r.categorie===cat && (r.date||'').slice(0,7)===ym){ if(!e||r.date<e) e=r.date; } }); return e||firstOfMonth(ym); };
+  const start=startOf(S.currentMonth), end=startOf(monthOffset(S.currentMonth,1));
+  const ed=isoToDate(end); ed.setDate(ed.getDate()-1);
   const f=d=>d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
-  el.innerHTML=`Ta période : <b style="color:var(--accent-lt)">${f(new Date(y,m-1,sd))} – ${f(new Date(y,m,sd-1))}</b>. Pratique si tu es payé(e) vers le ${sd} du mois.`;
+  const hasAnchor=(S.revenus||[]).some(r=>r.categorie===cat && (r.date||'').slice(0,7)===S.currentMonth);
+  el.innerHTML=`Période courante : <b style="color:var(--accent-lt)">${f(isoToDate(start))} – ${f(ed)}</b>.${hasAnchor?'':` <span style="color:var(--warn)">Aucun revenu « ${esc(cat)} » ce mois-ci → repli sur le 1er du mois.</span>`} Les bornes suivent tes dates de « ${esc(cat)} ».`;
 }
 function installHTML(){
   return `<div style="text-align:center;margin-bottom:14px">${mascot('celebrate').replace('class="masc-svg"','style="width:72px;height:72px;display:inline-block"')}</div>
@@ -2555,7 +2726,12 @@ function migrateState(){
   S.baseCurrency=S.accountsCurrency;
   if(!S.rates) S.rates={};
   if(!S.currentMonth) S.currentMonth=curMonth();
-  if(S.periodStartDay==null){ S.periodStartDay=1; } else { S.periodStartDay=Math.max(1,Math.min(28,Math.round(num(S.periodStartDay))||1)); }
+  // Période budgétaire : 'calendar' (défaut) ou 'income' (ancrée sur les dates de revenu-ancre).
+  if(S.periodMode!=='income') S.periodMode='calendar';
+  if(!S.periodAnchorCat || !RC[S.periodAnchorCat]) S.periodAnchorCat='Salaire';
+  if(!S.rolledOver || typeof S.rolledOver!=='object') S.rolledOver={};
+  // migration : ancien réglage jour-fixe -> on bascule en mode revenu si présent
+  if(S.periodStartDay!=null){ if(num(S.periodStartDay)>1) S.periodMode='income'; delete S.periodStartDay; }
   if(!Array.isArray(S.transferts)) S.transferts=[];
   S.epargnes.forEach(function(e){
     if(!e.contribType) e.contribType='fixe';
@@ -2568,6 +2744,12 @@ function init(){
   S=load();
   if(!S){ S=initData(); save(); }
   migrateState();
+  // Ouvrir sur la période qui contient aujourd'hui (en mode revenu, ce n'est pas forcément le mois calendaire).
+  S.currentMonth=currentPeriodKey();
+  // Reconduction automatique des récurrents pour la période courante (une seule fois par période).
+  if(!S.rolledOver) S.rolledOver={};
+  let _rollN=0;
+  if(!S.rolledOver[S.currentMonth]){ _rollN=rolloverRecurring(S.currentMonth); S.rolledOver[S.currentMonth]=true; }
   // Detecter premier lancement : pas de comptes initialises ET aucune donnee
   const hasData=S.revenus.length>0||S.depenses.length>0||S.epargnes.length>0;
   if(!S.comptes && !hasData){
@@ -2581,6 +2763,7 @@ function init(){
     hideWelcome();
     renderAll();
     checkDailyRate();
+    if(_rollN>0) setTimeout(()=>toast(`${_rollN} entrée(s) récurrente(s) ajoutée(s) pour cette période`,'ok'),800);
   }
 }
 

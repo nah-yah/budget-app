@@ -1,0 +1,29 @@
+# Configuration Netlify — mise à jour automatique de la PWA à chaque déploiement.
+
+[build]
+  publish = "."
+  # Injecte le SHA du commit dans sw.js pour que le service worker change à chaque déploiement.
+  # $COMMIT_REF est fourni par Netlify ; fallback "dev" en local.
+  command = "sed -i \"s/__BUILD_ID__/${COMMIT_REF:-dev}/g\" sw.js"
+
+# Fichiers critiques servis en no-cache : le navigateur les revalide toujours,
+# donc une nouvelle version est prise en compte dès le déploiement suivant.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Cache-Control = "no-cache"
