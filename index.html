@@ -17,6 +17,10 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<!-- Firebase (compat) : comptes + synchronisation cloud. Optionnel — l'app marche en local sans config. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
 :root{
   --bg:#F4EAD8; --bg-grad:#EADFC8;
@@ -78,6 +82,9 @@ input::placeholder{color:var(--txt3)}
 .app-title i{color:var(--accent);font-size:14px;flex:none;margin:0}
 .action-btn{flex:none;width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--s2);color:var(--accent);display:grid;place-items:center;cursor:pointer;font-size:15px}
 .action-btn:active{transform:scale(.94);background:var(--s4)}
+.sync-badge{position:absolute;left:0;top:50%;transform:translateY(-50%);width:38px;height:38px;display:grid;place-items:center;font-size:16px;cursor:pointer;z-index:2}
+.sync-badge.saving i{animation:sbpulse 1s ease-in-out infinite}
+@keyframes sbpulse{0%,100%{opacity:1}50%{opacity:.35}}
 .action-btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-dk));color:#FFFBF2;border-color:transparent}
 
 /* ===== Scroll area / tabs ===== */
@@ -130,6 +137,8 @@ input::placeholder{color:var(--txt3)}
 .ic-amt{font-family:'Space Grotesk';font-weight:700;font-size:15.5px;flex:none;text-align:right}
 .ic-amt.pos{color:var(--good)} .ic-amt.neg{color:var(--txt)}
 .ic-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.ic-del{width:34px;height:34px;border-radius:10px;flex:none;display:grid;place-items:center;background:var(--s1);border:1px solid var(--line);color:var(--txt3);cursor:pointer;font-size:13px;margin-left:2px;transition:all .12s}
+.ic-del:hover,.ic-del:active{background:rgba(217,119,87,.14);color:var(--bad);border-color:var(--bad)}
 
 
 /* ===== chips ===== */
@@ -531,6 +540,7 @@ input[type="date"]::-webkit-calendar-picker-indicator,input[type="month"]::-webk
     <header class="app-bar">
       <div class="app-bar-top">
         <div class="app-bar-spacer"></div>
+        <div id="syncBadge" class="sync-badge" style="display:none" onclick="openAccountSheet()" aria-label="Compte & synchronisation"></div>
         <h1 class="app-title" id="appTitle"><i class="fa-solid fa-chart-pie"></i><span>Tableau de bord</span></h1>
         <button class="action-btn" id="appAction" aria-label="Action"><i class="fa-solid fa-ellipsis"></i></button>
       </div>
@@ -707,7 +717,22 @@ function accountBalances(){
   const add=(c,v)=>{ if(bal[c]!==undefined) bal[c]+=v; };
   S.revenus.forEach(r=>add(r.compte, num(r.montant)));
   S.depenses.forEach(d=>{ if(d.statut!=='Annulé') add(d.compte, -num(d.montant)); });
-  (S.transferts||[]).forEach(t=>{ add(t.deCompte,-num(t.montant)); add(t.versCompte,num(t.montant)); });
+  (S.transferts||[]).forEach(t=>{
+    // Un virement lie a un objectif est deja reflete dans le "montant actuel" de l'objectif
+    // cote compte d'epargne : on n'applique alors que le mouvement sur le compte non-epargne.
+    const deSav=isSavingsAccount(t.deCompte) && t.epargneId;
+    const versSav=isSavingsAccount(t.versCompte) && t.epargneId;
+    if(!deSav) add(t.deCompte,-num(t.montant));
+    if(!versSav) add(t.versCompte,num(t.montant));
+  });
+  // Le solde d'un compte d'epargne = solde initial + somme des "montants actuels" des objectifs rattaches.
+  (S.epargnes||[]).forEach(e=>{
+    const acct=e.compte||(e.type==='Tontine'?'Tontine':'Compte épargne');
+    if(isSavingsAccount(acct) && bal[acct]!==undefined){
+      const cur=e.type==='Tontine'?'HTG':savCur();
+      bal[acct]+=convert(num(e.actuel),cur,acctCur());
+    }
+  });
   return bal;
 }
 function totalNet(){ const b=accountBalances(); return Object.keys(b).reduce((s,c)=>s+b[c],0); }
@@ -807,18 +832,45 @@ function saveTransfert(){
     ab=readAmtBase('t_montant');
   }
   const epId=$('#t_ep').value||null;
-  const data={date:$('#t_date').value,montant:ab.montant,deCompte:$('#t_de').value,versCompte:$('#t_vers').value,epargneId:epId,description:$('#t_desc').value,devise:ab.devise,taux:ab.taux,amountType:ct,contribPct:pct};
-  if(editingId){ Object.assign(S.transferts.find(x=>x.id===editingId),data); toast('Virement modifie','ok'); }
-  else { S.transferts.push({id:uid(),...data}); toast('Virement enregistre','ok'); }
-  // alimenter l'objectif d'epargne si lie
+  // En edition : annuler d'abord l'effet de l'ancien virement sur son objectif (gere aussi les anciens virements sans delta).
+  if(editingId){ reverseTransfertGoalEffect(S.transferts.find(x=>x.id===editingId)); }
+  // Appliquer le nouvel effet sur l'objectif lie (dans la devise de l'objectif).
+  let epargneDelta=0;
   if(epId){
     const e=S.epargnes.find(x=>x.id===epId);
-    if(e){ e.actuel=Math.round((num(e.actuel)+convert(ab.montant,acctCur(),savCur()))*100)/100; }
+    if(e){
+      const goalCur=e.type==='Tontine'?'HTG':savCur();
+      epargneDelta=Math.round(convert(ab.montant,acctCur(),goalCur)*100)/100;
+      e.actuel=Math.round((num(e.actuel)+epargneDelta)*100)/100;
+    }
   }
+  const data={date:$('#t_date').value,montant:ab.montant,deCompte:$('#t_de').value,versCompte:$('#t_vers').value,epargneId:epId,description:$('#t_desc').value,devise:ab.devise,taux:ab.taux,amountType:ct,contribPct:pct,epargneDelta:epargneDelta};
+  if(editingId){ Object.assign(S.transferts.find(x=>x.id===editingId),data); toast('Virement modifie','ok'); }
+  else { S.transferts.push({id:uid(),...data}); toast('Virement enregistre','ok'); }
   save(); closeSheet(); renderAll();
 }
+/* Annule l'effet d'un virement sur son objectif d'epargne (retire du "actuel"). Gere les anciens
+   virements sans epargneDelta en recalculant. Renvoie le delta retire. */
+function reverseTransfertGoalEffect(t){
+  if(!t || !t.epargneId) return 0;
+  const e=S.epargnes.find(x=>x.id===t.epargneId);
+  if(!e) return 0;
+  let delta=num(t.epargneDelta);
+  if(!delta && isSavingsAccount(t.versCompte) && !isSavingsAccount(t.deCompte)){
+    const goalCur=e.type==='Tontine'?'HTG':savCur();
+    delta=Math.round(convert(num(t.montant),acctCur(),goalCur)*100)/100;
+  }
+  if(delta){ e.actuel=Math.round((num(e.actuel)-delta)*100)/100; if(e.actuel<0) e.actuel=0; }
+  return delta;
+}
+/* Supprime un virement et annule proprement son effet sur l'objectif d'epargne (le solde suit). */
 function deleteTransfert(id){
-  S.transferts=S.transferts.filter(t=>t.id!==id); save(); closeSheet(); renderAll(); toast('Virement supprime','info');
+  const t=S.transferts.find(x=>x.id===id);
+  if(t){
+    reverseTransfertGoalEffect(t);
+    if(t.epargneId && t.description==='Tontine - mon tour'){ const e=S.epargnes.find(x=>x.id===t.epargneId); if(e) e.tourPris=false; } // supprimer un "mon tour" annule aussi le badge
+  }
+  S.transferts=S.transferts.filter(x=>x.id!==id); save(); closeSheet(); renderAll(); toast('Virement supprime','info');
 }
 /* Contribuer ce mois-ci a un objectif : cree un virement checking -> compte d'epargne (sortie/depense) et fait grossir l'objectif. */
 function contributeToGoal(id){
@@ -828,7 +880,8 @@ function contributeToGoal(id){
   const acct=e.compte||(e.type==='Tontine'?'Tontine':'Compte épargne');
   const contribCur=e.type==='Tontine'?'HTG':savCur();
   const amt=Math.round(convert(contrib,contribCur,acctCur())*100)/100;
-  S.transferts.push({id:uid(),date:todayISO(),montant:amt,deCompte:'Compte courant',versCompte:acct,epargneId:id,description:'Contribution '+(e.nom||''),devise:acctCur(),taux:1,amountType:'fixe',contribPct:0});
+  // epargneDelta = montant ajoute a l'objectif (dans SA devise), pour pouvoir annuler proprement a la suppression.
+  S.transferts.push({id:uid(),date:todayISO(),montant:amt,deCompte:'Compte courant',versCompte:acct,epargneId:id,description:'Contribution '+(e.nom||''),devise:acctCur(),taux:1,amountType:'fixe',contribPct:0,epargneDelta:contrib});
   e.actuel=Math.round((num(e.actuel)+contrib)*100)/100;
   save(); renderAll(); toast('Contribution de '+fmtGoal(e,contrib)+' enregistree (sortie du checking)','ok');
 }
@@ -843,6 +896,16 @@ function myTurn(id){
   S.transferts.push({id:uid(),date:todayISO(),montant:amt,deCompte:acct,versCompte:'Compte courant',epargneId:id,description:'Tontine - mon tour',devise:acctCur(),taux:1,amountType:'fixe',contribPct:0});
   e.tourPris=true;
   save(); renderAll(); toast('Ton tour ! '+fmt(pot)+' encaisses dans le checking. Continue de cotiser jusqu\'a la fin du cycle.','ok');
+}
+/* Annuler un tour pris par erreur : retire le virement "mon tour" et enleve le badge "Tour pris". */
+function undoMyTurn(id){
+  const e=S.epargnes.find(x=>x.id===id); if(!e) return;
+  // retire le dernier virement "Tontine - mon tour" lie a cette tontine
+  let idx=-1;
+  (S.transferts||[]).forEach((t,i)=>{ if(t.epargneId===id && t.description==='Tontine - mon tour') idx=i; });
+  if(idx>=0) S.transferts.splice(idx,1);
+  e.tourPris=false;
+  save(); renderAll(); toast('Tour annule — le badge « Tour pris » a ete retire','info');
 }
 function setTransType(t){
   $('#t_amountType').value=t;
@@ -1223,8 +1286,61 @@ let editingId=null;
 const charts={};
 let vF={q:'',cat:'Tous'}, dF={q:'',cat:'Tous',stat:'Tous'};
 
+/* =========================================================
+   CONFIGURATION FIREBASE (comptes + synchronisation cloud)
+   ---------------------------------------------------------
+   1. Va sur https://console.firebase.google.com → « Ajouter un projet ».
+   2. Dans le projet : Build → Authentication → Sign-in method →
+      active « E-mail/Mot de passe » ET « Google ».
+   3. Build → Firestore Database → « Créer une base » (mode production).
+      Puis onglet « Règles » et colle :
+        rules_version = '2';
+        service cloud.firestore {
+          match /databases/{database}/documents {
+            match /budgets/{userId} {
+              allow read, write: if request.auth != null && request.auth.uid == userId;
+            }
+          }
+        }
+   4. Paramètres du projet (roue crantée) → « Vos applications » → icône Web (</>) →
+      enregistre l'app → copie l'objet firebaseConfig et remplace les valeurs ci-dessous.
+   5. Onglet Authentication → Settings → « Authorized domains » : ajoute le domaine
+      où tu héberges l'app (ex. ton-user.github.io). localhost est déjà autorisé.
+   NB : ces clés sont PUBLIQUES par conception (la sécurité vient des règles Firestore),
+   il est normal qu'elles soient dans le code. Tant que ce n'est pas rempli, l'app
+   fonctionne 100% en local, sans compte.
+========================================================= */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAQT3wZaqiwXxQse2-Tnu5-VABzgznnO1M",
+  authDomain: "budget-app-f556b.firebaseapp.com",
+  projectId: "budget-app-f556b",
+  storageBucket: "budget-app-f556b.firebasestorage.app",
+  messagingSenderId: "929811744487",
+  appId: "1:929811744487:web:1cea457f49ec8fe6928442",
+  measurementId: "G-9EB346MD81"
+};
+
+/* --- État de la synchronisation cloud --- */
+let auth=null, db=null;
+let cloudReady=false;           // SDK Firebase initialisé + config valide
+let cloudUser=null;             // utilisateur connecté (ou null)
+let cloudUnsub=null;            // fonction pour arrêter l'écoute temps réel
+let cloudPushTimer=null;        // debounce des écritures
+let applyingRemote=false;       // vrai pendant qu'on applique une donnée reçue du cloud
+let cloudStatus='idle';         // idle | saving | synced | error
+let cloudInitError='';          // '' | 'config' | 'sdk' | 'init' : raison si le cloud n'est pas prêt
+let accountSheetOpen=false;
+let authMode='login';
+let authEmailCache='';
+let deviceId=(function(){ let d=localStorage.getItem('budget_device'); if(!d){ d=Date.now().toString(36)+Math.random().toString(36).slice(2,7); localStorage.setItem('budget_device',d); } return d; })();
+
 function load(){ try{ return JSON.parse(localStorage.getItem(KEY)); }catch(e){ return null; } }
-function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
+function persistLocal(){ localStorage.setItem(KEY, JSON.stringify(S)); }
+function save(){
+  if(!applyingRemote && S) S._updatedAt=Date.now();
+  persistLocal();
+  scheduleCloudPush();
+}
 
 function initData(){
   return {
@@ -1450,8 +1566,8 @@ function renderDashboard(){
     </div>`:''}
     <div class="kpi-grid">
       ${kpiCard('Revenus','arrow-trend-up','#8FB573',fmt(R),`${getR().length} entrée(s)`,'pos')}
-      ${kpiCard('Dépenses','arrow-trend-down','#D97757',fmt(D),`${getD().length} dépense(s)`,'neg')}
       ${kpiCard('Checking','wallet','#D4A574',fmt(chk),transfersToSavings()>0?`dont ${fmt(transfersToSavings())} épargné`:`${monthTransferts().length} virement(s)`,chk>=0?'acc':'neg')}
+      ${kpiCard('Dépenses','arrow-trend-down','#D97757',fmt(D),`${getD().length} dépense(s)`,'neg')}
       ${kpiCard('Épargné ce mois','piggy-bank','#8B6F47',fmt(transfersToSavings()),`${S.epargnes.length} objectif(s)`,'pos')}
     </div>
     ${(function(){
@@ -1519,6 +1635,7 @@ function renderRevenusList(){
         <div class="ic-body"><div class="ic-desc">${esc(r.description)}</div>
           <div class="ic-meta"><span>${fmtDate(r.date)}</span>${r.frequence?`<span>·</span><span>${esc(r.frequence)}</span>`:''}${r.compte?`<span>·</span><span>${esc(r.compte)}</span>`:''}</div></div>
         <div class="ic-amt pos" style="text-align:right">+${amtLabel(r.montant,r.devise,r.taux)}${r.devise&&r.devise!==baseCur()?`<div style="font-size:10px;font-weight:500;color:var(--txt3)">≈ ${fmt(r.montant)}</div>`:''}</div>
+        <button class="ic-del" title="Supprimer ce revenu" aria-label="Supprimer" onclick="event.stopPropagation();askDeleteRevenu('${r.id}')"><i class="fa-solid fa-trash-can"></i></button>
       </div></div>`;
   }).join('') : emptyBox('Aucun revenu trouvé','arrow-trend-up');
 }
@@ -1560,6 +1677,7 @@ function renderDepensesList(){
         <div class="ic-body"><div class="ic-desc">${esc(d.description)}</div>
           <div class="ic-meta"><span>${fmtDate(d.date)}</span>${d.sousCategorie?`<span>·</span><span>${esc(d.sousCategorie)}</span>`:''}</div></div>
         <div class="ic-amt" style="text-align:right">${amtLabel(d.montant,d.devise,d.taux)}${d.devise&&d.devise!==baseCur()?`<div style="font-size:10px;font-weight:500;color:var(--txt3)">≈ ${fmt(d.montant)}</div>`:''}</div>
+        <button class="ic-del" title="Supprimer cette dépense" aria-label="Supprimer" onclick="event.stopPropagation();askDeleteDepense('${d.id}')"><i class="fa-solid fa-trash-can"></i></button>
       </div>
       <div class="ic-chips">${chip(d.modePaiement,pc)}${chip(d.statut,st)}${chip(d.priorite,pr)}${d.recurrent?chip('Récurrent',{color:'#9A6028',icon:'arrows-rotate'}):''}</div>
     </div>`;
@@ -1601,7 +1719,9 @@ function renderEpargne(){
       <div class="ic-chips" style="margin-top:9px">${tourChip}${contribChip(e)}${posInfo?`<span class="chip" style="color:var(--txt3);background:rgba(168,149,128,.14)"><i class="fa-solid fa-list-ol"></i>${posInfo}</span>`:''}${e.devise&&e.devise!==savCur()?`<span class="chip" style="color:var(--txt3);background:rgba(168,149,128,.14)"><i class="fa-solid fa-coins"></i>${e.devise}</span>`:''}</div>
       <div style="display:flex;gap:8px;margin-top:11px" onclick="event.stopPropagation()">
         <button class="btn ghost" style="margin:0;flex:1;padding:10px;font-size:12.5px" onclick="contributeToGoal('${e.id}')"><i class="fa-solid fa-plus"></i> Contribuer ce mois</button>
-        ${isTontine?`<button class="btn" style="margin:0;flex:1;padding:10px;font-size:12.5px;background:linear-gradient(135deg,var(--good),#6E9A52)" onclick="myTurn('${e.id}')"><i class="fa-solid fa-gift"></i> C'est mon tour</button>`:''}
+        ${isTontine?(e.tourPris
+          ?`<button class="btn ghost" style="margin:0;flex:1;padding:10px;font-size:12.5px;border-color:var(--warn);color:var(--warn)" onclick="undoMyTurn('${e.id}')"><i class="fa-solid fa-rotate-left"></i> Annuler le tour</button>`
+          :`<button class="btn" style="margin:0;flex:1;padding:10px;font-size:12.5px;background:linear-gradient(135deg,var(--good),#6E9A52)" onclick="myTurn('${e.id}')"><i class="fa-solid fa-gift"></i> C'est mon tour</button>`):''}
       </div>
     </div>`;
   }).join('') : emptyBox('Aucun objectif d\'épargne. Ajoutes-en un !','piggy-bank');
@@ -1614,6 +1734,7 @@ function renderEpargne(){
         <div class="ic-body"><div class="ic-desc">${esc(t.deCompte)} <i class="fa-solid fa-arrow-right" style="font-size:9px;color:var(--txt3)"></i> ${esc(t.versCompte)}</div>
           <div class="ic-meta"><span>${fmtDate(t.date)}</span>${t.description?`<span>·</span><span>${esc(t.description)}</span>`:''}${t.amountType==='pourcentage'?`<span>·</span><span>${num(t.contribPct)}% du revenu</span>`:''}</div></div>
         <div class="ic-amt" style="color:var(--info)">${amtLabel(t.montant,t.devise,t.taux)}</div>
+        <button class="ic-del" title="Supprimer ce virement" aria-label="Supprimer" onclick="event.stopPropagation();askDeleteTransfert('${t.id}')"><i class="fa-solid fa-trash-can"></i></button>
       </div>
     </div>`).join('') : '';
   tabs.epargne.innerHTML = `
@@ -1797,7 +1918,7 @@ function openSheet(mode,id){
   $('#backdrop').classList.add('open'); $('#sheet').classList.add('open');
   setTimeout(()=>{ const f=body.querySelector('input,select,textarea'); if(f) f.focus(); },360);
 }
-function closeSheet(){ $('#backdrop').classList.remove('open'); $('#sheet').classList.remove('open'); editingId=null; }
+function closeSheet(){ $('#backdrop').classList.remove('open'); $('#sheet').classList.remove('open'); editingId=null; accountSheetOpen=false; }
 
 function venuForm(id){
   const r=id?S.revenus.find(x=>x.id===id):{};
@@ -1820,7 +1941,8 @@ function venuForm(id){
     <div class="field"><label>Validé</label>${selectArr('f_val',['Oui','Non'],r.valide===false?'Non':'Oui')}</div>
   </div>
   <div class="field"><label>Notes</label><textarea class="input" id="f_notes" rows="2" placeholder="Optionnel">${esc(r.notes||'')}</textarea></div>
-  <button class="btn" onclick="saveRevenu()"><i class="fa-solid fa-check"></i> Enregistrer</button>`;
+  <button class="btn" onclick="saveRevenu()"><i class="fa-solid fa-check"></i> Enregistrer</button>
+  ${id?`<button class="btn danger" onclick="askDeleteRevenu('${id}')"><i class="fa-solid fa-trash"></i> Supprimer ce revenu</button>`:''}`;
 }
 function depenseForm(id){
   const d=id?S.depenses.find(x=>x.id===id):{};
@@ -1852,7 +1974,8 @@ function depenseForm(id){
     <div><div style="font-weight:600;font-size:14px">Dépense récurrente</div><div style="font-size:11px;color:var(--txt3)">Se répète chaque mois</div></div>
   </div>
   <div class="field"><label>Notes</label><textarea class="input" id="d_notes" rows="2" placeholder="Optionnel">${esc(d.notes||'')}</textarea></div>
-  <button class="btn" onclick="saveDepense()"><i class="fa-solid fa-check"></i> Enregistrer</button>`;
+  <button class="btn" onclick="saveDepense()"><i class="fa-solid fa-check"></i> Enregistrer</button>
+  ${id?`<button class="btn danger" onclick="askDeleteDepense('${id}')"><i class="fa-solid fa-trash"></i> Supprimer cette dépense</button>`:''}`;
 }
 function epargneForm(id){
   const e=id?S.epargnes.find(x=>x.id===id):{};
@@ -1929,6 +2052,7 @@ function saveSettings(){
     Object.keys(S.comptes).forEach(c=>S.comptes[c]=num(S.comptes[c])*f);
     S.revenus.forEach(r=>reconvItem(r,oldAc,newAc));
     S.depenses.forEach(d=>reconvItem(d,oldAc,newAc));
+    (S.transferts||[]).forEach(t=>reconvItem(t,oldAc,newAc)); // les virements sont en devise des comptes -> reconvertir
     S.budgets.forEach(b=>b.montant=num(b.montant)*f);
     S.historique.forEach(h=>{ h.revenus=Math.round(h.revenus*f); h.depenses=Math.round(h.depenses*f); });
     S.accountsCurrency=newAc; S.baseCurrency=newAc;
@@ -1936,6 +2060,7 @@ function saveSettings(){
   if(newSv!==oldSv && CUR[newSv]){
     const f=rateOf(oldSv)/rateOf(newSv);
     S.epargnes.forEach(e=>{ e.actuel=num(e.actuel)*f; e.objectif=num(e.objectif)*f; e.contribution=num(e.contribution)*f; if(e.devise&&e.devise!==oldSv&&CUR[e.devise]){ e.taux=baseRateOf(e.devise,newSv); } else { e.devise=newSv; e.taux=1; } });
+    (S.transferts||[]).forEach(t=>{ if(t.epargneDelta) t.epargneDelta=Math.round(num(t.epargneDelta)*f*100)/100; }); // garder le delta aligné sur "actuel"
     S.savingsCurrency=newSv;
   }
   save(); closeSheet(); renderAll(); toast('Reglages enregistres','ok');
@@ -1964,19 +2089,45 @@ function installHTML(){
 
   <button class="btn" onclick="closeSheet()">J'ai compris</button>`;
 }
+function accountRow(){
+  if(!cloudReady){
+    return `<div class="opt-row" onclick="openAccountSheet()"><i class="fa-solid fa-cloud oi" style="color:#8B6F47;background:rgba(139,111,71,.16)"></i><div><div class="ot">Compte & synchronisation</div><div class="od">Sauvegarde cloud (à configurer)</div></div><i class="fa-solid fa-chevron-right"></i></div>`;
+  }
+  if(cloudUser){
+    const em=cloudUser.email||'Compte Google';
+    return `<div class="opt-row" onclick="openAccountSheet()"><i class="fa-solid fa-user-check oi" style="color:#5C8A4A;background:rgba(92,138,74,.16)"></i><div><div class="ot" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(em)}</div><div class="od">Connecté · données synchronisées</div></div><i class="fa-solid fa-chevron-right"></i></div>`;
+  }
+  return `<div class="opt-row" onclick="openAccountSheet()"><i class="fa-solid fa-cloud-arrow-up oi" style="color:#5B9EA0;background:rgba(91,158,160,.18)"></i><div><div class="ot">Se connecter / Créer un compte</div><div class="od">Sauvegarde & synchronisation multi-appareils</div></div><i class="fa-solid fa-chevron-right"></i></div>`;
+}
 function moreSheet(){
   return `
-    <div class="opt-row" onclick="openSheet('install')"><i class="fa-solid fa-mobile-screen-button oi" style="color:#5B9EA0;background:rgba(91,158,160,.18)"></i><div><div class="ot">Installer sur mon téléphone</div><div class="od">Créer l'application sur ton écran d'accueil</div></div><i class="fa-solid fa-chevron-right"></i></div>
+    ${accountRow()}
     <div class="opt-row" onclick="openSheet('settings')"><i class="fa-solid fa-coins oi"></i><div><div class="ot">Réglages & devise</div><div class="od">Devise des comptes : ${baseCur()}</div></div><i class="fa-solid fa-chevron-right"></i></div>
-    <div class="opt-row" onclick="openSheet('transfert')"><i class="fa-solid fa-right-left oi"></i><div><div class="ot">Virement entre comptes</div><div class="od">Checking vers epargne, etc.</div></div><i class="fa-solid fa-chevron-right"></i></div>
     <div class="opt-row" onclick="openSheet('convert')"><i class="fa-solid fa-coins oi"></i><div><div class="ot">Convertisseur de devises</div><div class="od">Estimer un montant etranger</div></div><i class="fa-solid fa-chevron-right"></i></div>
-    <div class="opt-row" onclick="exportCSV()"><i class="fa-solid fa-file-csv oi"></i><div><div class="ot">Exporter en CSV</div><div class="od">Revenus, dépenses & budget du mois</div></div><i class="fa-solid fa-chevron-right"></i></div>
+    <div class="opt-row" onclick="openCsvMenu()"><i class="fa-solid fa-file-csv oi" style="color:#E0A458;background:rgba(224,164,88,.18)"></i><div><div class="ot">Importer / Exporter un CSV</div><div class="od">Revenus & dépenses au format .csv</div></div><i class="fa-solid fa-chevron-right"></i></div>
+    <div class="opt-row" onclick="openBackupMenu()"><i class="fa-solid fa-database oi" style="color:#5B9EA0;background:rgba(91,158,160,.18)"></i><div><div class="ot">Importer / Exporter une sauvegarde</div><div class="od">Toutes tes données au format .json</div></div><i class="fa-solid fa-chevron-right"></i></div>
     <div class="opt-row" onclick="openSheet('budget')"><i class="fa-solid fa-sliders oi"></i><div><div class="ot">Gérer les budgets</div><div class="od">Montants prévus par catégorie</div></div><i class="fa-solid fa-chevron-right"></i></div>
     <div class="opt-row" onclick="confirmReset()"><i class="fa-solid fa-trash-can oi"></i><div><div class="ot">Réinitialiser les données</div><div class="od">Revenir aux données d'exemple</div></div><i class="fa-solid fa-chevron-right"></i></div>
     <div style="text-align:center;margin-top:18px;color:var(--txt3);font-size:11.5px">
       <div style="margin-bottom:6px">${mascot('happy').replace('class="masc-svg"','style="width:54px;height:54px;display:inline-block"')}</div>
       Budget · par Noisette<br>Données stockées localement (localStorage)
     </div>`;
+}
+/* Sous-menu : Importer / Exporter un CSV */
+function openCsvMenu(){
+  $('#sheetTitle').textContent='Importer / Exporter un CSV';
+  $('#sheetBody').innerHTML=`
+    <div class="opt-row" onclick="importCSV()"><i class="fa-solid fa-file-arrow-up oi" style="color:#E0A458;background:rgba(224,164,88,.18)"></i><div><div class="ot">Importer un CSV</div><div class="od">Ajoute des revenus/dépenses depuis un fichier .csv</div></div><i class="fa-solid fa-chevron-right"></i></div>
+    <div class="opt-row" onclick="exportCSV()"><i class="fa-solid fa-file-csv oi"></i><div><div class="ot">Exporter en CSV</div><div class="od">Revenus, dépenses & budget du mois</div></div><i class="fa-solid fa-chevron-right"></i></div>
+    <div class="opt-row" onclick="openSheet('more')"><i class="fa-solid fa-arrow-left oi" style="color:#8A7C6B;background:rgba(138,124,107,.16)"></i><div><div class="ot">Retour</div><div class="od">Revenir aux options</div></div></div>`;
+}
+/* Sous-menu : Importer / Exporter une sauvegarde (.json) */
+function openBackupMenu(){
+  $('#sheetTitle').textContent='Importer / Exporter une sauvegarde';
+  $('#sheetBody').innerHTML=`
+    <div class="opt-row" onclick="importBackup()"><i class="fa-solid fa-cloud-arrow-up oi" style="color:#8FB573;background:rgba(143,181,115,.18)"></i><div><div class="ot">Importer une sauvegarde</div><div class="od">Restaurer une session à partir d'un .json</div></div><i class="fa-solid fa-chevron-right"></i></div>
+    <div class="opt-row" onclick="exportBackup()"><i class="fa-solid fa-cloud-arrow-down oi" style="color:#5B9EA0;background:rgba(91,158,160,.18)"></i><div><div class="ot">Exporter une sauvegarde</div><div class="od">Fichier .json de toutes tes données</div></div><i class="fa-solid fa-chevron-right"></i></div>
+    <div class="opt-row" onclick="openSheet('more')"><i class="fa-solid fa-arrow-left oi" style="color:#8A7C6B;background:rgba(138,124,107,.16)"></i><div><div class="ot">Retour</div><div class="od">Revenir aux options</div></div></div>`;
 }
 
 function selectOpts(id,cfg,val,extra){ return `<select class="select" id="${id}" ${extra||''}>`+Object.keys(cfg).map(k=>`<option value="${k}" ${k===val?'selected':''}>${k}</option>`).join('')+`</select>`; }
@@ -2056,7 +2207,32 @@ function saveEpargne(){
   save(); closeSheet(); renderAll();
 }
 function deleteEpargne(id){
-  S.epargnes=S.epargnes.filter(e=>e.id!==id); save(); closeSheet(); renderAll(); toast('Objectif supprimé','info');
+  S.epargnes=S.epargnes.filter(e=>e.id!==id);
+  // Retire les virements liés à cet objectif : leurs mouvements sur les autres comptes sont
+  // annulés (l'argent contribué revient sur le compte source), pour que les soldes restent cohérents.
+  const linked=(S.transferts||[]).filter(t=>t.epargneId===id).length;
+  S.transferts=(S.transferts||[]).filter(t=>t.epargneId!==id);
+  save(); closeSheet(); renderAll();
+  toast(linked?`Objectif supprimé (${linked} virement(s) associé(s) annulé(s))`:'Objectif supprimé','info');
+}
+function askDeleteRevenu(id){
+  const r=S.revenus.find(x=>x.id===id); if(!r) return;
+  if(confirm(`Supprimer le revenu « ${r.description||'sans nom'} » (${fmt(num(r.montant))}) ?\nCette action est définitive.`)){
+    S.revenus=S.revenus.filter(x=>x.id!==id); save(); closeSheet(); renderAll(); toast('Revenu supprimé','info');
+  }
+}
+function askDeleteDepense(id){
+  const d=S.depenses.find(x=>x.id===id); if(!d) return;
+  if(confirm(`Supprimer la dépense « ${d.description||'sans nom'} » (${fmt(num(d.montant))}) ?\nCette action est définitive.`)){
+    S.depenses=S.depenses.filter(x=>x.id!==id); save(); closeSheet(); renderAll(); toast('Dépense supprimée','info');
+  }
+}
+function askDeleteTransfert(id){
+  const t=S.transferts.find(x=>x.id===id); if(!t) return;
+  const lbl=t.description||`${t.deCompte} → ${t.versCompte}`;
+  if(confirm(`Supprimer « ${lbl} » (${fmt(num(t.montant))}) ?\nLe solde de l'objectif d'épargne sera ajusté en conséquence.`)){
+    deleteTransfert(id);
+  }
 }
 function saveBudgets(){
   document.querySelectorAll('[data-bcat]').forEach(inp=>{ const c=inp.dataset.bcat; const m=num(inp.value); const ex=S.budgets.find(b=>b.categorie===c); if(ex) ex.montant=m; else S.budgets.push({categorie:c,montant:m}); });
@@ -2069,7 +2245,7 @@ function saveBudgets(){
 function exportCSV(){
   const m=S.currentMonth; const sep=';';
   const rows=[['Type','Date','Description','Catégorie','Sous-catégorie','Montant','Paiement','Statut','Priorité','Compte']];
-  getR().forEach(r=>rows.push(['Revenu',r.date,r.description,r.categorie,'',r.montant,r.frequence,'','','',r.compte]));
+  getR().forEach(r=>rows.push(['Revenu',r.date,r.description,r.categorie,'',r.montant,r.frequence,'','',r.compte]));
   S.depenses.filter(d=>inMonth(d,m)).forEach(d=>rows.push(['Dépense',d.date,d.description,d.categorie,d.sousCategorie||'',d.montant,d.modePaiement,d.statut,d.priorite,d.compte]));
   rows.push([]);
   rows.push(['Budget','','Total revenus','','',totalR()]);
@@ -2081,6 +2257,111 @@ function exportCSV(){
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob);
   const a=document.createElement('a'); a.href=url; a.download=`budget_${m}.csv`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   toast('Export CSV téléchargé','ok'); closeSheet();
+}
+
+/* --- Import CSV : lit les lignes « Revenu » / « Dépense » et les ajoute aux données.
+   Compatible avec le CSV exporté par l'app (et tolérant aux éditions Excel : séparateur
+   ; ou , décimales avec , ou . , dates ISO ou JJ/MM/AAAA). --- */
+function parseCSVLine(line,sep){
+  const out=[]; let cur='',q=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(q){ if(ch==='"'){ if(line[i+1]==='"'){ cur+='"'; i++; } else q=false; } else cur+=ch; }
+    else { if(ch==='"') q=true; else if(ch===sep){ out.push(cur); cur=''; } else cur+=ch; }
+  }
+  out.push(cur); return out;
+}
+function csvNum(s){ if(s==null) return 0; let t=String(s).trim().replace(/\s/g,''); if(t.indexOf(',')>=0 && t.indexOf('.')<0) t=t.replace(',','.'); return num(t); }
+function csvDate(s){
+  if(!s) return '';
+  s=String(s).trim();
+  let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+  m=s.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})/);
+  if(m) return `${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
+  return '';
+}
+/* Ouvre un sélecteur de fichier et renvoie le contenu texte via callback.
+   L'input est attaché au DOM (fiabilité sur certains navigateurs mobiles) puis retiré. */
+function pickFile(accept,onText){
+  const inp=document.createElement('input');
+  inp.type='file'; inp.accept=accept;
+  inp.style.position='fixed'; inp.style.left='-9999px'; inp.style.opacity='0';
+  document.body.appendChild(inp);
+  const cleanup=()=>{ try{ inp.remove(); }catch(_){} };
+  inp.onchange=e=>{
+    const file=e.target.files&&e.target.files[0];
+    if(!file){ cleanup(); return; }
+    const reader=new FileReader();
+    reader.onload=ev=>{ cleanup(); onText(String(ev.target.result||'')); };
+    reader.onerror=()=>{ cleanup(); toast('Impossible de lire le fichier','err'); };
+    reader.readAsText(file);
+  };
+  inp.click();
+}
+function importCSV(){
+  pickFile('.csv,text/csv',text=>{
+    if(text.charCodeAt(0)===0xFEFF) text=text.slice(1); // enlève le BOM
+    const sep=(text.split(';').length>=text.split(',').length)?';':',';
+    const lines=text.split(/\r?\n/).filter(l=>l.trim().length);
+    if(!lines.length) return toast('Fichier CSV vide','err');
+    const newR=[], newD=[]; let skipped=0;
+    lines.forEach((line,idx)=>{
+      const c=parseCSVLine(line,sep).map(x=>x.trim());
+      const type=(c[0]||'').toLowerCase();
+      if(idx===0 && (type==='type'||type==='')) return; // ligne d'en-tête
+      if(type==='revenu'){
+        const date=csvDate(c[1]); if(!date){ skipped++; return; }
+        newR.push({id:uid(),date,description:c[2]||'Import',categorie:RC[c[3]]?c[3]:'Autre revenu',
+          montant:csvNum(c[5]),devise:acctCur(),taux:1,frequence:FREQ.indexOf(c[6])>=0?c[6]:'Mensuel',
+          compte:COMPTES[c[9]]?c[9]:'Compte courant',valide:true,notes:''});
+      } else if(type==='dépense'||type==='depense'){
+        const date=csvDate(c[1]); if(!date){ skipped++; return; }
+        const cat=CC[c[3]]?c[3]:'Autres dépenses';
+        newD.push({id:uid(),date,description:c[2]||'Import',categorie:cat,sousCategorie:c[4]||'',
+          montant:csvNum(c[5]),devise:acctCur(),taux:1,modePaiement:PC[c[6]]?c[6]:'CB',
+          statut:SC[c[7]]?c[7]:'Payé',priorite:PRC[c[8]]?c[8]:'Moyenne',
+          compte:COMPTES[c[9]]?c[9]:'Compte courant',recurrent:false,notes:''});
+      }
+    });
+    if(!newR.length && !newD.length) return toast('Aucun revenu/dépense reconnu dans ce CSV','err');
+    if(!confirm(`Importer ${newR.length} revenu(s) et ${newD.length} dépense(s) depuis ce CSV ?${skipped?`\n(${skipped} ligne(s) ignorée(s) : date manquante)`:''}\n\nIls seront AJOUTÉS à tes données actuelles.`)) return;
+    S.revenus.push.apply(S.revenus,newR); S.depenses.push.apply(S.depenses,newD);
+    save(); closeSheet(); renderAll();
+    toast(`${newR.length+newD.length} entrée(s) importée(s)`,'ok');
+  });
+}
+
+/* =========================================================
+   SAUVEGARDE COMPLETE (JSON) — export / import
+========================================================= */
+function exportBackup(){
+  const payload={ _app:'budget-noisette', _version:4, _exportedAt:new Date().toISOString(), data:S };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=`budget_sauvegarde_${todayISO()}.json`;
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  toast('Sauvegarde téléchargée','ok'); closeSheet();
+}
+function importBackup(){
+  pickFile('application/json,.json',text=>{
+    let parsed;
+    try{ parsed=JSON.parse(text); }
+    catch(err){ return toast('Fichier illisible : ce n\'est pas une sauvegarde valide','err'); }
+    // accepte le format { data:{...} } (export sauvegarde) ou l'etat brut directement
+    const data=(parsed && parsed.data && typeof parsed.data==='object')?parsed.data:parsed;
+    if(!data || typeof data!=='object' || !Array.isArray(data.revenus) || !Array.isArray(data.depenses)){
+      return toast('Sauvegarde invalide : revenus/dépenses introuvables','err');
+    }
+    const nbR=data.revenus.length, nbD=data.depenses.length, nbE=Array.isArray(data.epargnes)?data.epargnes.length:0;
+    if(!confirm(`Importer cette sauvegarde ?\n\n${nbR} revenu(s), ${nbD} dépense(s), ${nbE} objectif(s) d'épargne.\n\nCela remplacera toutes les données actuelles de l'application.`)) return;
+    S=data;
+    migrateState();
+    if(!S.comptes) S.comptes={};
+    Object.keys(COMPTES).forEach(c=>{ if(S.comptes[c]==null) S.comptes[c]=0; });
+    save(); hideWelcome(); closeSheet(); renderAll();
+    toast('Sauvegarde importée avec succès','ok');
+  });
 }
 let resetStep=0;
 function confirmReset(){
@@ -2165,9 +2446,10 @@ function saveWelcome(){
   toast('Soldes initiaux enregistres','ok');
 }
 
-function init(){
-  S=load();
-  if(!S){ S=initData(); save(); }
+/* Normalise / migre un etat charge (localStorage ou sauvegarde importee). */
+function migrateState(){
+  // garantir la presence des tableaux attendus (sauvegardes anciennes ou partielles)
+  ['revenus','depenses','epargnes','transferts','budgets','historique'].forEach(function(k){ if(!Array.isArray(S[k])) S[k]=[]; });
   // migration categories : renommer les anciennes vers la nouvelle liste
   const CAT_MAP={'Logement':'Autres dépenses','Loisirs':'Loisir','Éducation':'Autres dépenses','Vêtement':'Vêtements','Vetement':'Vêtements','Impôts':'Autres dépenses','Assurances':'Autres dépenses','Autre dépense':'Autres dépenses','Soins':'Care','Épargnes':'Épargne'};
   const ACCT_MAP={'Compte joint':'Compte courant','Livret A':'Compte épargne','PEA':'Compte épargne','Compte dollar':'Compte épargne'};
@@ -2189,12 +2471,19 @@ function init(){
   if(!S.savingsCurrency || !CUR[S.savingsCurrency]) S.savingsCurrency='USD';
   S.baseCurrency=S.accountsCurrency;
   if(!S.rates) S.rates={};
+  if(!S.currentMonth) S.currentMonth=curMonth();
   if(!Array.isArray(S.transferts)) S.transferts=[];
   S.epargnes.forEach(function(e){
     if(!e.contribType) e.contribType='fixe';
     if(e.contribPct==null) e.contribPct=0;
     if(!e.compte) e.compte=(e.type==='Livret A'||e.type==='PEA')?e.type:'Compte courant';
   });
+}
+
+function init(){
+  S=load();
+  if(!S){ S=initData(); save(); }
+  migrateState();
   // Detecter premier lancement : pas de comptes initialises ET aucune donnee
   const hasData=S.revenus.length>0||S.depenses.length>0||S.epargnes.length>0;
   if(!S.comptes && !hasData){
@@ -2259,6 +2548,248 @@ function saveDailyRate(){
   toast('Taux mis a jour','ok');
 }
 
+/* =========================================================
+   SYNCHRONISATION CLOUD (Firebase Auth + Firestore)
+   Tant que FIREBASE_CONFIG n'est pas rempli, tout est inerte
+   et l'app reste 100% locale.
+========================================================= */
+function cloudConfigured(){
+  return FIREBASE_CONFIG && typeof FIREBASE_CONFIG.apiKey==='string'
+    && FIREBASE_CONFIG.apiKey.indexOf('PASTE')<0
+    && FIREBASE_CONFIG.projectId && FIREBASE_CONFIG.projectId.indexOf('PASTE')<0;
+}
+function initFirebase(){
+  if(!cloudConfigured()){ cloudReady=false; cloudInitError='config'; return; }
+  if(typeof firebase==='undefined'){ cloudReady=false; cloudInitError='sdk'; return; }
+  try{
+    firebase.initializeApp(FIREBASE_CONFIG);
+    auth=firebase.auth();
+    db=firebase.firestore();
+    try{ db.settings({ignoreUndefinedProperties:true}); }catch(e){} // évite un crash de .set() si S contient une valeur undefined
+    cloudReady=true; cloudInitError='';        // prêt AVANT la persistance (qui peut échouer sans bloquer le cloud)
+    auth.onAuthStateChanged(onAuthChanged);
+    // Cache hors-ligne : best-effort. Peut lever une exception (file://, navigation privée) — sans impact sur le cloud.
+    try{ db.enablePersistence({synchronizeTabs:true}).catch(()=>{}); }catch(e){}
+  }catch(e){ cloudReady=false; cloudInitError='init'; console.warn('Firebase indisponible :',e&&e.message); }
+}
+function cloudRef(){ return (cloudReady&&cloudUser&&db)?db.collection('budgets').doc(cloudUser.uid):null; }
+function hasRealData(st){ return !!(st && ((st.revenus&&st.revenus.length)||(st.depenses&&st.depenses.length)||(st.epargnes&&st.epargnes.length))); }
+
+/* --- Réactions au changement d'état d'authentification --- */
+function onAuthChanged(user){
+  cloudUser=user||null;
+  if(user){ handleSignedIn(user); }
+  else { stopCloudListener(); cloudStatus='idle'; }
+  updateSyncBadge();
+  if(accountSheetOpen) renderAccountSheet();
+}
+function markLinked(uid){ if(S){ S._cloudUid=uid; persistLocal(); } }
+function handleSignedIn(user){
+  const ref=db.collection('budgets').doc(user.uid);
+  // Lecture SERVEUR obligatoire : ne pas se fier au cache (vide hors-ligne) pour décider
+  // de pousser/écraser, sinon on risque d'effacer les données du cloud.
+  ref.get({source:'server'}).then(snap=>{
+    const remote=snap.exists?snap.data():null;
+    const remoteData=remote&&remote.state&&hasRealData(remote.state);
+    const alreadyLinked = S && S._cloudUid===user.uid; // cet appareil est déjà rattaché à ce compte
+    if(!remoteData){
+      // rien (d'utile) dans le cloud : on y envoie les données de l'appareil
+      markLinked(user.uid);
+      pushNow().then(()=>toast('Compte lié — sauvegarde cloud activée','ok'));
+    } else if(alreadyLinked){
+      // rechargement normal / même compte : réconciliation silencieuse par date, aucun popup
+      if(num(remote.updatedAt) > num(S._updatedAt)){ applyRemoteState(remote.state); }
+      else { markLinked(user.uid); scheduleCloudPush(); }
+    } else if(hasRealData(S)){
+      // données locales JAMAIS liées à ce compte + données présentes dans le cloud : vrai choix
+      const keepCloud=confirm("Des données existent à la fois dans ton compte (cloud) et sur cet appareil.\n\nOK = utiliser les données du CLOUD (recommandé sur un nouvel appareil).\nAnnuler = garder CET APPAREIL et remplacer le cloud.");
+      if(keepCloud){ applyRemoteState(remote.state); toast('Données du cloud chargées','ok'); }
+      else { markLinked(user.uid); pushNow().then(()=>toast('Cet appareil est sauvegardé dans le cloud','ok')); }
+    } else {
+      // appareil vide : on récupère simplement les données du compte
+      applyRemoteState(remote.state); toast('Données restaurées depuis ton compte','ok');
+    }
+    startCloudListener(ref);
+    if(accountSheetOpen) closeSheet();
+  }).catch(e=>{
+    // Hors-ligne (unavailable) : on ne montre pas d'erreur, le listener synchronisera au retour du réseau.
+    if(!(e && e.code==='unavailable')) cloudErr(e);
+    startCloudListener(ref);
+    if(accountSheetOpen) renderAccountSheet();
+  });
+}
+function applyRemoteState(state){
+  applyingRemote=true;
+  S=state;
+  migrateState();
+  if(!S.comptes) S.comptes={};
+  Object.keys(COMPTES).forEach(c=>{ if(S.comptes[c]==null) S.comptes[c]=0; });
+  if(cloudUser) S._cloudUid=cloudUser.uid;
+  persistLocal();
+  applyingRemote=false;
+  hideWelcome();
+  renderAll();
+  cloudStatus='synced';
+  refreshSyncUI();
+}
+
+/* --- Écoute temps réel : reçoit les changements d'un autre appareil --- */
+function startCloudListener(ref){
+  stopCloudListener();
+  cloudUnsub=ref.onSnapshot(snap=>{
+    if(!snap.exists) return;
+    if(snap.metadata.hasPendingWrites) return; // notre propre écriture en attente : on ignore
+    const remote=snap.data();
+    if(!remote||!remote.state) return;
+    const rU=num(remote.updatedAt), lU=num(S&&S._updatedAt);
+    if(rU>lU){
+      applyRemoteState(remote.state);
+      toast('Données mises à jour depuis un autre appareil','info');
+    }
+  }, err=>{ /* réseau : ignoré, on retentera */ });
+}
+function stopCloudListener(){ if(cloudUnsub){ try{cloudUnsub();}catch(e){} cloudUnsub=null; } }
+
+/* --- Écritures vers le cloud (avec debounce) --- */
+function refreshSyncUI(){ updateSyncBadge(); if(accountSheetOpen) updateSyncLine(); }
+function pushNow(){
+  const ref=cloudRef(); if(!ref) return Promise.resolve();
+  cloudStatus='saving'; refreshSyncUI();
+  return ref.set({ state:S, updatedAt:(S&&S._updatedAt)||Date.now(), device:deviceId, at:firebase.firestore.FieldValue.serverTimestamp() })
+    .then(()=>{ cloudStatus='synced'; refreshSyncUI(); })
+    .catch(e=>{ cloudStatus='error'; refreshSyncUI(); });
+}
+function scheduleCloudPush(){
+  if(applyingRemote || !cloudReady || !cloudUser) return;
+  clearTimeout(cloudPushTimer);
+  cloudPushTimer=setTimeout(pushNow, 1200);
+}
+function cloudManualPush(){ if(!cloudRef()) return; pushNow().then(()=>{ if(cloudStatus==='error') toast('Hors-ligne — sera synchronisé au retour du réseau','info'); else toast('Sauvegardé dans le cloud','ok'); }); }
+
+/* --- Authentification --- */
+function doEmailAuth(){
+  if(!auth) return;
+  const email=(($('#au_email')&&$('#au_email').value)||'').trim();
+  const pw=($('#au_pw')&&$('#au_pw').value)||'';
+  if(!email) return toast('Entre ton e-mail','err');
+  if(pw.length<6) return toast('Mot de passe : 6 caractères minimum','err');
+  if(authMode==='signup'){
+    const pw2=($('#au_pw2')&&$('#au_pw2').value)||'';
+    if(pw!==pw2) return toast('Les mots de passe ne correspondent pas','err');
+    auth.createUserWithEmailAndPassword(email,pw).then(()=>toast('Compte créé','ok')).catch(cloudErr);
+  } else {
+    auth.signInWithEmailAndPassword(email,pw).then(()=>toast('Connecté','ok')).catch(cloudErr);
+  }
+}
+function doGoogleAuth(){
+  if(!auth) return;
+  const p=new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(p).then(()=>toast('Connecté avec Google','ok')).catch(cloudErr);
+}
+function doPasswordReset(){
+  if(!auth) return;
+  let email=(($('#au_email')&&$('#au_email').value)||'').trim();
+  if(!email) email=(prompt('Entre ton e-mail pour recevoir le lien de réinitialisation :')||'').trim();
+  if(!email) return toast('Entre ton e-mail d\'abord','err');
+  auth.sendPasswordResetEmail(email).then(()=>toast('E-mail de réinitialisation envoyé à '+email,'ok')).catch(cloudErr);
+}
+function doSignOut(){
+  if(!auth) return;
+  auth.signOut().then(()=>{ toast('Déconnecté (tes données restent sur cet appareil)','info'); if(accountSheetOpen) renderAccountSheet(); });
+}
+function cloudErr(e){
+  const m={
+    'auth/invalid-email':'E-mail invalide',
+    'auth/user-not-found':'Aucun compte avec cet e-mail',
+    'auth/wrong-password':'Mot de passe incorrect',
+    'auth/invalid-credential':'E-mail ou mot de passe incorrect',
+    'auth/email-already-in-use':'Un compte existe déjà avec cet e-mail',
+    'auth/weak-password':'Mot de passe trop faible (6 min)',
+    'auth/popup-closed-by-user':'Connexion Google annulée',
+    'auth/popup-blocked':'La fenêtre Google a été bloquée par le navigateur',
+    'auth/network-request-failed':'Problème de réseau',
+    'auth/operation-not-allowed':'Méthode de connexion non activée dans Firebase',
+    'auth/unauthorized-domain':'Ce domaine n\'est pas autorisé dans Firebase (Authentication → Settings)'
+  };
+  toast((e&&m[e.code])||('Erreur : '+((e&&e.message)||e)),'err');
+}
+
+/* --- Feuille « Compte & sauvegarde » --- */
+function openAccountSheet(){
+  authMode='login'; authEmailCache=''; accountSheetOpen=true;
+  $('#sheetTitle').textContent='Compte & sauvegarde';
+  renderAccountSheet();
+  $('#backdrop').classList.add('open'); $('#sheet').classList.add('open');
+}
+function setAuthMode(m){ const e=$('#au_email'); if(e) authEmailCache=e.value; authMode=m; renderAccountSheet(); }
+function syncStatusText(){
+  if(cloudStatus==='saving') return '<i class="fa-solid fa-cloud-arrow-up"></i> Sauvegarde en cours…';
+  if(cloudStatus==='error') return '<i class="fa-solid fa-triangle-exclamation" style="color:var(--warn)"></i> Hors-ligne — sera synchronisé au retour du réseau';
+  return '<i class="fa-solid fa-circle-check" style="color:var(--good)"></i> À jour — synchronisé';
+}
+function updateSyncLine(){ const el=$('#syncLine'); if(el) el.innerHTML=syncStatusText(); }
+/* Petite pastille de synchro dans l'en-tête : visible seulement une fois connecté. */
+function updateSyncBadge(){
+  const el=$('#syncBadge'); if(!el) return;
+  if(!cloudReady || !cloudUser){ el.style.display='none'; return; }
+  el.style.display='grid';
+  let ic,color,title;
+  if(cloudStatus==='saving'){ ic='cloud-arrow-up'; color='var(--accent)'; title='Sauvegarde en cours…'; }
+  else if(cloudStatus==='error'){ ic='triangle-exclamation'; color='var(--warn)'; title='Hors-ligne — synchronisation au retour du réseau'; }
+  else { ic='cloud'; color='var(--good)'; title='À jour — synchronisé'; }
+  el.className='sync-badge'+(cloudStatus==='saving'?' saving':'');
+  el.style.color=color;
+  el.title=title;
+  el.innerHTML=`<i class="fa-solid fa-${ic}"></i>`;
+}
+function renderAccountSheet(){
+  const body=$('#sheetBody'); if(!body) return;
+  if(!cloudReady){
+    let titre,corps;
+    if(cloudInitError==='sdk'){
+      titre='SDK Firebase non chargé';
+      corps=`Le SDK Firebase n'a pas pu se charger. Vérifie ta <b>connexion internet</b> et que tu n'ouvres pas le fichier en <b>local (file://)</b> — la synchro nécessite l'app servie en <b>https</b> (ton site Netlify). Recharge la page une fois en ligne.`;
+    } else if(cloudInitError==='init'){
+      titre='Firebase indisponible';
+      corps=`L'initialisation Firebase a échoué. Vérifie que le projet est actif et que la config est correcte, puis recharge la page.`;
+    } else {
+      titre='Synchronisation non configurée';
+      corps=`Il faut renseigner la configuration Firebase dans le code (constante <b>FIREBASE_CONFIG</b>).`;
+    }
+    body.innerHTML=`<div style="font-size:13px;color:var(--txt2);line-height:1.6;background:var(--s1);border:1px solid var(--line);border-radius:12px;padding:14px">
+      <b style="color:var(--txt)">${titre}</b><br>${corps}<br><br>
+      En attendant, l'app fonctionne parfaitement en local, et tu peux utiliser <b>Importer / Exporter une sauvegarde</b> pour transférer tes données.</div>`;
+    return;
+  }
+  if(cloudUser){
+    const em=cloudUser.email||'Compte Google';
+    body.innerHTML=`
+      <div style="display:flex;align-items:center;gap:12px;background:var(--s1);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px">
+        <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-dk));color:#FFFBF2;display:grid;place-items:center;font-size:18px;flex:none"><i class="fa-solid fa-user-check"></i></div>
+        <div style="min-width:0"><div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(em)}</div><div style="font-size:12px;color:var(--txt3)">Connecté · sauvegarde automatique</div></div>
+      </div>
+      <div id="syncLine" style="font-size:12.5px;color:var(--txt2);margin:0 2px 14px;display:flex;align-items:center;gap:7px">${syncStatusText()}</div>
+      <button class="btn" onclick="cloudManualPush()"><i class="fa-solid fa-cloud-arrow-up"></i> Sauvegarder maintenant</button>
+      <button class="btn ghost" onclick="doSignOut()"><i class="fa-solid fa-right-from-bracket"></i> Se déconnecter</button>
+      <div style="font-size:11px;color:var(--txt3);margin-top:14px;line-height:1.5;text-align:center">Connecte-toi avec ce même compte sur un autre appareil pour y retrouver tes données.</div>`;
+    return;
+  }
+  const isSignup=authMode==='signup';
+  body.innerHTML=`
+    <div class="subtabs" style="margin-bottom:16px">
+      <button class="subtab ${!isSignup?'active':''}" onclick="setAuthMode('login')">Connexion</button>
+      <button class="subtab ${isSignup?'active':''}" onclick="setAuthMode('signup')">Inscription</button>
+    </div>
+    <div class="field"><label>E-mail</label><input type="email" class="input" id="au_email" autocomplete="email" placeholder="toi@exemple.com" value="${esc(authEmailCache)}"></div>
+    <div class="field"><label>Mot de passe</label><input type="password" class="input" id="au_pw" autocomplete="${isSignup?'new-password':'current-password'}" placeholder="6 caractères minimum"></div>
+    ${isSignup?`<div class="field"><label>Confirmer le mot de passe</label><input type="password" class="input" id="au_pw2" autocomplete="new-password" placeholder="Retape ton mot de passe"></div>`:''}
+    <button class="btn" onclick="doEmailAuth()"><i class="fa-solid fa-${isSignup?'user-plus':'right-to-bracket'}"></i> ${isSignup?'Créer mon compte':'Se connecter'}</button>
+    ${!isSignup?`<div style="text-align:center;margin-top:10px"><span onclick="doPasswordReset()" style="font-size:12px;color:var(--accent-lt);cursor:pointer;text-decoration:underline">Mot de passe oublié ?</span></div>`:''}
+    <div style="display:flex;align-items:center;gap:10px;color:var(--txt3);font-size:12px;margin:14px 0"><div style="flex:1;height:1px;background:var(--line)"></div>ou<div style="flex:1;height:1px;background:var(--line)"></div></div>
+    <button class="btn ghost" onclick="doGoogleAuth()"><i class="fa-brands fa-google" style="color:#DB4437"></i> Continuer avec Google</button>
+    <div style="font-size:11px;color:var(--txt3);margin-top:16px;line-height:1.5;text-align:center">Tes données restent privées : accessibles uniquement via ton compte. La connexion active la sauvegarde et la synchronisation entre tes appareils.</div>`;
+}
+
 /* ===== Enregistrement officiel du Service Worker PWA ===== */
 if('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')){
   window.addEventListener('load', () => {
@@ -2267,6 +2798,7 @@ if('serviceWorker' in navigator && (window.location.protocol === 'https:' || win
 }
 
 init();
+initFirebase();
 </script>
 </body>
 </html>
