@@ -686,13 +686,38 @@ const monthOffset = (ym,n)=>{ const [y,m]=ym.split('-').map(Number); const d=new
 const esc = s => (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const inMonth = (it,ym)=> (it.date||'').slice(0,7)===ym;
 
-function getR(){ return S.revenus.filter(r=>inMonth(r,S.currentMonth)); }
-function getD(){ return S.depenses.filter(d=>inMonth(d,S.currentMonth) && d.statut!=='Annulé'); }
+/* ===== Période budgétaire personnalisable =====
+   periodStartDay=1 -> mois calendaire classique.
+   periodStartDay=22 -> la période "2026-06" va du 22 juin (inclus) au 21 juillet (le 22/07 démarre la période suivante). */
+function periodStartDay(){ let d=Math.round((S&&num(S.periodStartDay))||1); if(d<1)d=1; if(d>28)d=28; return d; }
+const pad2=n=>String(n).padStart(2,'0');
+/* Renvoie les bornes ISO de la période (start inclus, end exclu). */
+function periodRange(ym){
+  const sd=periodStartDay();
+  const [y,m]=ym.split('-').map(Number);
+  const start=`${y}-${pad2(m)}-${pad2(sd)}`;
+  const ny=m===12?y+1:y, nm=m===12?1:m+1;
+  const end=`${ny}-${pad2(nm)}-${pad2(sd)}`;
+  return {start,end};
+}
+/* Un élément (date ISO) est-il dans la période ym ? Identique à inMonth si periodStartDay=1. */
+function inPeriod(it,ym){ const d=(it&&it.date)||''; if(!d) return false; const r=periodRange(ym); return d>=r.start && d<r.end; }
+/* Libellé lisible d'une période, ex. "22 juin – 21 juil.". */
+function periodLabelRange(ym){
+  const [sy,sm,sd]=periodRange(ym).start.split('-').map(Number);
+  const startD=new Date(sy,sm-1,sd);
+  const endD=new Date(sy,sm,sd-1); // veille du début de la période suivante
+  const f=d=>d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+  return `${f(startD)} – ${f(endD)}`;
+}
+
+function getR(){ return S.revenus.filter(r=>inPeriod(r,S.currentMonth)); }
+function getD(){ return S.depenses.filter(d=>inPeriod(d,S.currentMonth) && d.statut!=='Annulé'); }
 /* Comptes d'epargne : l'argent qui y est mis n'est plus disponible pour les depenses courantes. */
   const SAVINGS_ACCOUNTS=['Compte épargne','Tontine'];
   function isSavingsAccount(name){ return SAVINGS_ACCOUNTS.indexOf(name)>=0; }
   /* Virements du mois : separes des depenses et revenus. */
-  function monthTransferts(){ return (S.transferts||[]).filter(t=>inMonth(t,S.currentMonth)); }
+  function monthTransferts(){ return (S.transferts||[]).filter(t=>inPeriod(t,S.currentMonth)); }
   function transfersToSavings(){ return monthTransferts().filter(t=>isSavingsAccount(t.versCompte)&&!isSavingsAccount(t.deCompte)).reduce((s,t)=>s+num(t.montant),0); }
   function transfersFromSavings(){ return monthTransferts().filter(t=>isSavingsAccount(t.deCompte)&&!isSavingsAccount(t.versCompte)).reduce((s,t)=>s+num(t.montant),0); }
   function totalR(){ return getR().reduce((s,r)=>s+num(r.montant),0); }
@@ -736,6 +761,25 @@ function accountBalances(){
   return bal;
 }
 function totalNet(){ const b=accountBalances(); return Object.keys(b).reduce((s,c)=>s+b[c],0); }
+/* Checking "du mois" : flux net du Compte courant SUR la période (revenus - dépenses ± virements), sans report. */
+function checkingPeriodNet(ym){
+  let net=0;
+  S.revenus.forEach(r=>{ if(r.compte==='Compte courant' && inPeriod(r,ym)) net+=num(r.montant); });
+  S.depenses.forEach(d=>{ if(d.compte==='Compte courant' && d.statut!=='Annulé' && inPeriod(d,ym)) net-=num(d.montant); });
+  (S.transferts||[]).forEach(t=>{ if(inPeriod(t,ym)){ if(t.deCompte==='Compte courant') net-=num(t.montant); if(t.versCompte==='Compte courant') net+=num(t.montant); } });
+  return Math.round(net*100)/100;
+}
+/* Checking "avec report" : solde cumulé du Compte courant jusqu'à la FIN de la période (report des périodes précédentes inclus). */
+function checkingCarryover(ym){
+  const end=periodRange(ym).end;
+  let bal=(S.comptes&&S.comptes['Compte courant'])?num(S.comptes['Compte courant']):0;
+  S.revenus.forEach(r=>{ if(r.compte==='Compte courant' && (r.date||'')<end) bal+=num(r.montant); });
+  S.depenses.forEach(d=>{ if(d.compte==='Compte courant' && d.statut!=='Annulé' && (d.date||'')<end) bal-=num(d.montant); });
+  (S.transferts||[]).forEach(t=>{ if((t.date||'')<end){ if(t.deCompte==='Compte courant') bal-=num(t.montant); if(t.versCompte==='Compte courant') bal+=num(t.montant); } });
+  return Math.round(bal*100)/100;
+}
+/* Ce qui restait à la fin de la période précédente (= report entrant). */
+function checkingCarryIn(ym){ return checkingCarryover(monthOffset(ym,-1)); }
 function accountBalancesCard(){
   const bal=accountBalances();
   const rows=Object.keys(COMPTES).map(c=>{
@@ -1502,7 +1546,10 @@ function kpiCard(lbl,icon,iconBg,val,sub,cls){
 function renderDashboard(){
   const R=totalR(), D=totalD(), bal=R-D, rate=R>0?(bal/R*100):0;
   const ab=accountBalances();
-  const chk=num(ab['Compte courant']||0);
+  const chkCarry=checkingCarryover(S.currentMonth); // checking avec report
+  const chkNet=checkingPeriodNet(S.currentMonth);   // checking du mois (sans report)
+  const chkIn=checkingCarryIn(S.currentMonth);       // report entrant (fin période précédente)
+  const chk=chkCarry;
   const epTotal=S.epargnes.reduce((s,e)=>s+num(e.actuel),0);
   const sb=spentByCat();
   const alerts=S.budgets.map(b=>{
@@ -1566,9 +1613,31 @@ function renderDashboard(){
     </div>`:''}
     <div class="kpi-grid">
       ${kpiCard('Revenus','arrow-trend-up','#8FB573',fmt(R),`${getR().length} entrée(s)`,'pos')}
-      ${kpiCard('Checking','wallet','#D4A574',fmt(chk),transfersToSavings()>0?`dont ${fmt(transfersToSavings())} épargné`:`${monthTransferts().length} virement(s)`,chk>=0?'acc':'neg')}
+      ${kpiCard('Checking du mois','wallet','#D4A574',(chkNet>=0?'+':'')+fmt(chkNet),`Solde : ${fmt(chkCarry)}`,chkNet>=0?'acc':'neg')}
       ${kpiCard('Dépenses','arrow-trend-down','#D97757',fmt(D),`${getD().length} dépense(s)`,'neg')}
       ${kpiCard('Épargné ce mois','piggy-bank','#8B6F47',fmt(transfersToSavings()),`${S.epargnes.length} objectif(s)`,'pos')}
+    </div>
+    <div class="card" style="background:linear-gradient(135deg,var(--s1),var(--s2))">
+      <h3 style="margin-bottom:12px"><i class="fa-solid fa-wallet"></i>Checking · ${periodLabelRange(S.currentMonth)}</h3>
+      <div style="display:flex;align-items:stretch;text-align:center">
+        <div style="flex:1">
+          <div style="font-size:11px;color:var(--txt2)">Report entrant</div>
+          <div style="font-family:'Space Grotesk';font-weight:700;font-size:17px;color:var(--txt)">${fmt(chkIn)}</div>
+          <div style="font-size:10px;color:var(--txt3)">période précédente</div>
+        </div>
+        <div style="display:grid;place-items:center;color:var(--txt3);font-weight:700;padding:0 4px">+</div>
+        <div style="flex:1">
+          <div style="font-size:11px;color:var(--txt2)">Net du mois</div>
+          <div style="font-family:'Space Grotesk';font-weight:700;font-size:17px;color:${chkNet>=0?'var(--good)':'var(--bad)'}">${chkNet>=0?'+':''}${fmt(chkNet)}</div>
+          <div style="font-size:10px;color:var(--txt3)">entrées − sorties</div>
+        </div>
+        <div style="display:grid;place-items:center;color:var(--txt3);font-weight:700;padding:0 4px">=</div>
+        <div style="flex:1">
+          <div style="font-size:11px;color:var(--txt2)">Avec report</div>
+          <div style="font-family:'Space Grotesk';font-weight:700;font-size:17px;color:${chkCarry>=0?'var(--accent-lt)':'var(--bad)'}">${fmt(chkCarry)}</div>
+          <div style="font-size:10px;color:var(--txt3)">solde réel</div>
+        </div>
+      </div>
     </div>
     ${(function(){
       const bT=totalBudget(), spent=totalD(), rest=bT-spent, pct=bT>0?Math.min(100,spent/bT*100):0, over=spent>bT&&bT>0;
@@ -1660,7 +1729,7 @@ function setDepStatus(s){ dF.stat=s; renderDepenses(); }
 function renderDepensesList(){
   const list=$('#depensesList'); if(!list) return;
   let items=S.depenses.filter(d=>{
-    if(!inMonth(d,S.currentMonth)) return false;
+    if(!inPeriod(d,S.currentMonth)) return false;
     if(dF.cat!=='Tous' && d.categorie!==dF.cat) return false;
     if(dF.stat!=='Tous' && d.statut!==dF.stat) return false;
     if(dF.q && !(d.description||'').toLowerCase().includes(dF.q.toLowerCase())) return false;
@@ -1726,7 +1795,7 @@ function renderEpargne(){
     </div>`;
   }).join('') : emptyBox('Aucun objectif d\'épargne. Ajoutes-en un !','piggy-bank');
   // Virements
-  const transfers=(S.transferts||[]).filter(t=>inMonth(t,S.currentMonth)).sort((a,b)=>(a.date<b.date?1:-1));
+  const transfers=(S.transferts||[]).filter(t=>inPeriod(t,S.currentMonth)).sort((a,b)=>(a.date<b.date?1:-1));
   const transHtml = transfers.length? transfers.map(t=>`
     <div class="item-card" onclick="openSheet('transfert','${t.id}')">
       <div class="ic-top">
@@ -1892,7 +1961,7 @@ function renderTab(t){
   else if(t==='stats') renderStats();
 }
 function renderAll(){
-  $('#monthLabel').textContent=monthLabel(S.currentMonth);
+  $('#monthLabel').textContent = periodStartDay()===1 ? monthLabel(S.currentMonth) : periodLabelRange(S.currentMonth);
   $('#yearLabel').textContent=yearLabel(S.currentMonth);
   renderDashboard(); renderRevenus(); renderDepenses(); renderEpargne(); renderStats();
   setAppBar();
@@ -2028,6 +2097,11 @@ function settingsHTML(){
   </div>
   <div style="font-size:12px;color:var(--txt2);margin:-4px 0 16px;line-height:1.5">Les comptes sont en <b>${ac}</b> et l'épargne en <b>${sc}</b>. Les montants saisis dans une autre devise sont convertis automatiquement. Changer une devise reconvertit les donnees existantes.</div>
   <button class="btn ghost" style="margin:0 0 16px" onclick="openRatePrompt(rateKeyCurrencies())"><i class="fa-solid fa-arrows-rotate"></i> Mettre a jour les taux du jour</button>
+  <div class="section-title">Période budgétaire</div>
+  <div class="field"><label>Jour de début de période</label>
+    <select class="select" id="set_pstart" onchange="previewPeriod()">${Array.from({length:28},(_,i)=>i+1).map(d=>`<option value="${d}" ${d===periodStartDay()?'selected':''}>${d===1?'1er (mois calendaire)':'le '+d+' du mois'}</option>`).join('')}</select>
+  </div>
+  <div id="periodPreview" style="font-size:11.5px;color:var(--txt2);margin:-4px 0 16px;line-height:1.5">${periodStartDay()===1?'Ta période suit le mois calendaire (1er au dernier jour).':`Ta période actuelle : <b style="color:var(--accent-lt)">${periodLabelRange(S.currentMonth)}</b>. Pratique si tu es payé(e) vers le ${periodStartDay()} du mois.`}</div>
   <div class="section-title">Soldes initiaux des comptes (${ac})</div>`+
   Object.keys(COMPTES).map(c=>{
     const ic=COMPTES[c], bal=(S.comptes&&S.comptes[c])?S.comptes[c]:0;
@@ -2063,7 +2137,16 @@ function saveSettings(){
     (S.transferts||[]).forEach(t=>{ if(t.epargneDelta) t.epargneDelta=Math.round(num(t.epargneDelta)*f*100)/100; }); // garder le delta aligné sur "actuel"
     S.savingsCurrency=newSv;
   }
+  const ps=$('#set_pstart'); if(ps){ let sd=Math.round(num(ps.value))||1; if(sd<1)sd=1; if(sd>28)sd=28; S.periodStartDay=sd; }
   save(); closeSheet(); renderAll(); toast('Reglages enregistres','ok');
+}
+function previewPeriod(){
+  const sel=$('#set_pstart'), el=$('#periodPreview'); if(!sel||!el) return;
+  let sd=Math.round(num(sel.value))||1; if(sd<1)sd=1; if(sd>28)sd=28;
+  if(sd===1){ el.innerHTML='Ta période suit le mois calendaire (1er au dernier jour).'; return; }
+  const [y,m]=S.currentMonth.split('-').map(Number);
+  const f=d=>d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+  el.innerHTML=`Ta période : <b style="color:var(--accent-lt)">${f(new Date(y,m-1,sd))} – ${f(new Date(y,m,sd-1))}</b>. Pratique si tu es payé(e) vers le ${sd} du mois.`;
 }
 function installHTML(){
   return `<div style="text-align:center;margin-bottom:14px">${mascot('celebrate').replace('class="masc-svg"','style="width:72px;height:72px;display:inline-block"')}</div>
@@ -2246,7 +2329,7 @@ function exportCSV(){
   const m=S.currentMonth; const sep=';';
   const rows=[['Type','Date','Description','Catégorie','Sous-catégorie','Montant','Paiement','Statut','Priorité','Compte']];
   getR().forEach(r=>rows.push(['Revenu',r.date,r.description,r.categorie,'',r.montant,r.frequence,'','',r.compte]));
-  S.depenses.filter(d=>inMonth(d,m)).forEach(d=>rows.push(['Dépense',d.date,d.description,d.categorie,d.sousCategorie||'',d.montant,d.modePaiement,d.statut,d.priorite,d.compte]));
+  S.depenses.filter(d=>inPeriod(d,m)).forEach(d=>rows.push(['Dépense',d.date,d.description,d.categorie,d.sousCategorie||'',d.montant,d.modePaiement,d.statut,d.priorite,d.compte]));
   rows.push([]);
   rows.push(['Budget','','Total revenus','','',totalR()]);
   rows.push(['Budget','','Total dépenses','','',totalD()]);
@@ -2472,6 +2555,7 @@ function migrateState(){
   S.baseCurrency=S.accountsCurrency;
   if(!S.rates) S.rates={};
   if(!S.currentMonth) S.currentMonth=curMonth();
+  if(S.periodStartDay==null){ S.periodStartDay=1; } else { S.periodStartDay=Math.max(1,Math.min(28,Math.round(num(S.periodStartDay))||1)); }
   if(!Array.isArray(S.transferts)) S.transferts=[];
   S.epargnes.forEach(function(e){
     if(!e.contribType) e.contribType='fixe';
@@ -2790,15 +2874,30 @@ function renderAccountSheet(){
     <div style="font-size:11px;color:var(--txt3);margin-top:16px;line-height:1.5;text-align:center">Tes données restent privées : accessibles uniquement via ton compte. La connexion active la sauvegarde et la synchronisation entre tes appareils.</div>`;
 }
 
-/* ===== Enregistrement officiel du Service Worker PWA ===== */
+/* ===== Service Worker PWA + mise à jour automatique ===== */
 if('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')){
+  let swRefreshing=false;
+  const hadController=!!navigator.serviceWorker.controller; // faux à la toute première installation
+  // Quand une NOUVELLE version prend le contrôle (nouveau déploiement) : on recharge l'app.
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if(swRefreshing || !hadController) return; // pas de rechargement à la 1re installation, pas de boucle
+    swRefreshing=true;
+    window.location.reload();
+  });
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+      reg.update(); // vérifie une mise à jour dès le démarrage
+      // ...et à chaque fois que l'app revient au premier plan (rouvrir depuis l'écran d'accueil).
+      document.addEventListener('visibilitychange', () => {
+        if(document.visibilityState==='visible') reg.update();
+      });
+    }).catch(()=>{});
   });
 }
 
-init();
-initFirebase();
+// Robustesse : une erreur dans init() ne doit pas empêcher l'initialisation du cloud (et inversement).
+try{ init(); }catch(e){ console.error('Erreur init():',e); }
+try{ initFirebase(); }catch(e){ console.error('Erreur initFirebase():',e); }
 </script>
 </body>
 </html>
