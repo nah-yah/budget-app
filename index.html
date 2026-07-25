@@ -658,7 +658,7 @@ const PRC = { // priorités
 };
 const FREQ = ['Unique','Mensuel','Trimestriel','Annuel'];
 const COMPTES = {
-  'Compte courant':'wallet','Compte épargne':'vault','Tontine':'users','Espèces':'money-bill-wave','MonCash':'mobile-screen-button','NatCash':'mobile-screen-button'
+  'Compte courant':'wallet','Compte épargne':'vault','Tontine':'users','Espèces':'money-bill-wave','MonCash':'mobile-screen-button','NatCash':'mobile-screen-button','Carte de débit':'credit-card','Carte de crédit':'money-check-dollar'
 };
 const TYPES_EP = ['Compte épargne','Dépôt à terme','Immobilier','Or/Argent','Tontine','Autre'];
 const TI = {'Compte épargne':'vault','Dépôt à terme':'lock','Immobilier':'city','Or/Argent':'coins','Tontine':'users','Autre':'box'};
@@ -807,7 +807,8 @@ function isConfirmedRev(r){ return r.valide!==false; }
 function isConfirmedDep(d){ return d.statut==='Payé'; }
 /* "Disponible du mois" : flux net sur TOUS les comptes de dépense (hors épargne) sur la période.
    Inclut donc MonCash/Espèces/etc., et soustrait les virements vers l'épargne. confirmed=true => uniquement le réel. */
-function isSpendingAccount(c){ return !isSavingsAccount(c); }
+/* Comptes de dépense = ni épargne, ni carte de crédit (la carte est une dette, pas du cash disponible). */
+function isSpendingAccount(c){ return !isSavingsAccount(c) && c!=='Carte de crédit'; }
 function checkingPeriodNet(ym,confirmed){
   let net=0;
   S.revenus.forEach(r=>{ if(isSpendingAccount(r.compte) && inPeriod(r,ym) && (!confirmed||isConfirmedRev(r))) net+=num(r.montant); });
@@ -1117,6 +1118,9 @@ function totalExpensesRange(n){ return catBreakdownRange(n).reduce((s,o)=>s+o.va
 function spentByCat(){
   const map={}; getD().forEach(d=>{ const k=d.categorie||'Autres dépenses'; map[k]=(map[k]||0)+num(d.montant); }); return map;
 }
+/* Tags de dépenses (listes personnalisées : Skincare, Vacances…) */
+function allTags(){ const s={}; (S.depenses||[]).forEach(d=>{ if(d.tag) s[d.tag]=1; }); return Object.keys(s).sort(); }
+function tagTotalPeriod(tag){ let t=0; getD().forEach(d=>{ if((d.tag||'')===tag) t+=num(d.montant); }); return Math.round(t*100)/100; }
 
 /* ===== Budget enveloppe : report du non-dépensé d'une période à l'autre ===== */
 function baseBudget(cat){ const b=S.budgets.find(x=>x.categorie===cat); return b?num(b.montant):0; }
@@ -1467,7 +1471,7 @@ let statsSub='budget';
 let statsRange=6; // nombre de périodes affichées dans les graphiques d'évolution (3 / 6 / 12)
 let editingId=null;
 const charts={};
-let vF={q:'',cat:'Tous'}, dF={q:'',cat:'Tous',stat:'Tous'};
+let vF={q:'',cat:'Tous'}, dF={q:'',cat:'Tous',stat:'Tous',tag:''};
 
 /* =========================================================
    CONFIGURATION FIREBASE (comptes + synchronisation cloud)
@@ -1855,26 +1859,31 @@ function renderRevenusList(){
    RENDER — Dépenses
 ========================================================= */
 function renderDepenses(){
+  const tags=allTags();
   tabs.depenses.innerHTML=`
     <div class="search-bar"><i class="fa-solid fa-magnifying-glass"></i><input id="depSearch" placeholder="Rechercher une dépense..." value="${esc(dF.q)}"></div>
     <div class="pill-row" id="depPills"></div>
     <div class="pill-row" id="depStat" style="margin-top:-8px"></div>
+    ${tags.length?`<div class="pill-row" id="depTags" style="margin-top:-8px"></div>`:''}
     <div id="depensesList"></div>
-    <div class="total-bar"><span class="tl">Total dépenses (hors annulées)</span><span class="tv" style="color:var(--bad)">${fmt(totalD())}</span></div>`;
+    <div class="total-bar"><span class="tl" id="depTotalLbl">Total dépenses (hors annulées)</span><span class="tv" id="depTotalVal" style="color:var(--bad)">${fmt(totalD())}</span></div>`;
   $('#depPills').innerHTML=['Tous',...Object.keys(CC)].map(c=>`<button class="pill ${dF.cat===c?'active':''}" onclick="setDepFilter('${c.replace(/'/g,"\\'")}')">${c}</button>`).join('');
   $('#depStat').innerHTML=['Tous','Payé','En attente','Annulé'].map(s=>`<button class="pill ${dF.stat===s?'active':''}" onclick="setDepStatus('${s}')">${s}</button>`).join('');
+  if(tags.length) $('#depTags').innerHTML=[['','Tous les tags'],...tags.map(t=>[t,'# '+t])].map(([v,lbl])=>`<button class="pill ${dF.tag===v?'active':''}" onclick="setDepTag('${String(v).replace(/'/g,"\\'")}')">${esc(lbl)}</button>`).join('');
   $('#depSearch').addEventListener('input',e=>{ dF.q=e.target.value; renderDepensesList(); });
   renderDepensesList();
 }
 function setDepFilter(c){ dF.cat=c; renderDepenses(); }
 function setDepStatus(s){ dF.stat=s; renderDepenses(); }
+function setDepTag(t){ dF.tag=t; renderDepenses(); }
 function renderDepensesList(){
   const list=$('#depensesList'); if(!list) return;
   let items=S.depenses.filter(d=>{
     if(!inPeriod(d,S.currentMonth)) return false;
     if(dF.cat!=='Tous' && d.categorie!==dF.cat) return false;
     if(dF.stat!=='Tous' && d.statut!==dF.stat) return false;
-    if(dF.q && !(d.description||'').toLowerCase().includes(dF.q.toLowerCase())) return false;
+    if(dF.tag && (d.tag||'')!==dF.tag) return false;
+    if(dF.q && !((d.description||'').toLowerCase().includes(dF.q.toLowerCase()) || (d.tag||'').toLowerCase().includes(dF.q.toLowerCase()))) return false;
     return true;
   }).sort((a,b)=>(a.date<b.date?1:-1));
   list.innerHTML = items.length? items.map(d=>{
@@ -1890,9 +1899,14 @@ function renderDepensesList(){
         <div class="ic-amt" style="text-align:right">${amtLabel(d.montant,d.devise,d.taux)}${d.devise&&d.devise!==baseCur()?`<div style="font-size:10px;font-weight:500;color:var(--txt3)">≈ ${fmt(d.montant)}</div>`:''}</div>
         <button class="ic-del" title="Supprimer cette dépense" aria-label="Supprimer" onclick="event.stopPropagation();askDeleteDepense('${d.id}')"><i class="fa-solid fa-trash-can"></i></button>
       </div>
-      <div class="ic-chips">${chip(d.modePaiement,pc)}${chip(d.statut,st)}${chip(d.priorite,pr)}${d.recurrent?chip('Récurrent',{color:'#9A6028',icon:'arrows-rotate'}):''}</div>
+      <div class="ic-chips">${d.tag?`<span class="chip" style="color:var(--accent-lt);background:rgba(212,165,116,.18);cursor:pointer" onclick="event.stopPropagation();setDepTag('${String(d.tag).replace(/'/g,"\\'")}')"><i class="fa-solid fa-tag"></i>${esc(d.tag)}</span>`:''}${chip(d.modePaiement,pc)}${chip(d.statut,st)}${chip(d.priorite,pr)}${d.recurrent?chip('Récurrent',{color:'#9A6028',icon:'arrows-rotate'}):''}</div>
     </div>`;
   }).join('') : emptyBox('Aucune dépense trouvée','arrow-trend-down');
+  // total dynamique (reflète les filtres, ex. total du tag Skincare)
+  const filtered=items.filter(d=>d.statut!=='Annulé').reduce((s,d)=>s+num(d.montant),0);
+  const active=dF.cat!=='Tous'||dF.stat!=='Tous'||dF.tag||dF.q;
+  const lbl=$('#depTotalLbl'), val=$('#depTotalVal');
+  if(lbl&&val){ lbl.textContent=active?(dF.tag?`Total « ${dF.tag} » ce mois`:'Total filtré (hors annulées)'):'Total dépenses (hors annulées)'; val.textContent=fmt(active?filtered:totalD()); }
 }
 
 /* =========================================================
@@ -2323,6 +2337,10 @@ function depenseForm(id){
     <div class="field"><label>Priorité</label>${selectOpts('d_pri',PRC,d.priorite||'Moyenne')}</div>
     <div class="field"><label>Compte</label>${selectArr('d_compte',Object.keys(COMPTES),d.compte||'Compte courant')}</div>
   </div>
+  <div class="field"><label>Tag / liste (optionnel)</label><input type="text" class="input" id="d_tag" list="tagList" value="${esc(d.tag||'')}" placeholder="Ex. Skincare, Vacances, Anniversaire…">
+    <datalist id="tagList">${allTags().map(t=>`<option value="${esc(t)}"></option>`).join('')}</datalist>
+    <div style="font-size:11px;color:var(--txt3);margin-top:4px">Regroupe plusieurs achats (crème, savon, acides…) sous un même tag pour en voir le total.</div>
+  </div>
   <div class="field" style="display:flex;align-items:center;gap:12px;background:var(--s1);border:1px solid var(--line);border-radius:12px;padding:12px">
     <label class="switch"><input type="checkbox" id="d_rec" ${d.recurrent?'checked':''}><span class="sl"></span></label>
     <div><div style="font-weight:600;font-size:14px">Dépense récurrente</div><div style="font-size:11px;color:var(--txt3)">Se répète chaque mois</div></div>
@@ -2663,7 +2681,7 @@ function saveDepense(){
   if(!$('#d_date').value) return toast('La date est obligatoire','err');
   if(montant<=0) return toast('Le montant doit être positif','err');
   const ab=readAmtBase('d_montant');
-  const data={date:$('#d_date').value,description:$('#d_desc').value.trim(),categorie:$('#d_cat').value,sousCategorie:$('#d_sub').value,montant:ab.montant,devise:ab.devise,taux:ab.taux,modePaiement:$('#d_pay').value,statut:$('#d_stat').value,priorite:$('#d_pri').value,compte:$('#d_compte').value,recurrent:$('#d_rec').checked,notes:$('#d_notes').value};
+  const data={date:$('#d_date').value,description:$('#d_desc').value.trim(),categorie:$('#d_cat').value,sousCategorie:$('#d_sub').value,montant:ab.montant,devise:ab.devise,taux:ab.taux,modePaiement:$('#d_pay').value,statut:$('#d_stat').value,priorite:$('#d_pri').value,compte:$('#d_compte').value,recurrent:$('#d_rec').checked,tag:($('#d_tag')&&$('#d_tag').value||'').trim(),notes:$('#d_notes').value};
   if(editingId){ Object.assign(S.depenses.find(x=>x.id===editingId),data); toast('Dépense modifiée','ok'); }
   else { S.depenses.push({id:uid(),...data}); toast('Dépense ajoutée','ok'); }
   save(); closeSheet(); renderAll();
