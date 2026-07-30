@@ -78,7 +78,7 @@ input::placeholder{color:var(--txt3)}
 .month-box{text-align:center;min-width:84px;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .month-box .m{font-weight:700;font-size:13px;text-transform:capitalize;line-height:1.15;color:var(--txt)}
 .month-box .y{font-weight:600;font-size:10.5px;color:var(--txt2);letter-spacing:.5px;margin-top:1px}
-.app-title{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;font-size:16px;font-weight:700;margin:0;font-family:'Space Grotesk';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(100% - 88px);display:flex;align-items:center;justify-content:center;gap:7px}
+.app-title{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;font-size:16px;font-weight:700;margin:0;font-family:'Space Grotesk';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(100% - 180px);display:flex;align-items:center;justify-content:center;gap:7px}
 .app-title i{color:var(--accent);font-size:14px;flex:none;margin:0}
 .action-btn{flex:none;width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--s2);color:var(--accent);display:grid;place-items:center;cursor:pointer;font-size:15px}
 .action-btn:active{transform:scale(.94);background:var(--s4)}
@@ -86,6 +86,10 @@ input::placeholder{color:var(--txt3)}
 .sync-badge.saving i{animation:sbpulse 1s ease-in-out infinite}
 @keyframes sbpulse{0%,100%{opacity:1}50%{opacity:.35}}
 .action-btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-dk));color:#FFFBF2;border-color:transparent}
+/* Groupe de boutons a droite de la barre (oeil + action contextuelle) */
+.app-bar-actions{display:flex;align-items:center;gap:8px;margin-left:auto;flex:none;z-index:2}
+.action-btn.ghost{background:var(--s1);color:var(--txt2)}
+.action-btn.ghost.on{background:rgba(212,165,116,.18);border-color:rgba(212,165,116,.45);color:var(--accent)}
 
 /* ===== Scroll area / tabs ===== */
 .scroll-area{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 14px 16px}
@@ -307,6 +311,19 @@ input[type="date"]::-webkit-calendar-picker-indicator,input[type="month"]::-webk
 .bal-top .an{font-size:13px;font-weight:600;color:var(--txt2);line-height:1.2;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bal-amt{font-family:'Space Grotesk';font-weight:700;font-size:16px;line-height:1.1;flex:none;margin-left:auto}
 .bal-grid{display:flex;flex-direction:column}
+
+/* ===== Carte pliable (dropdown) ===== */
+.collapsible > h3{cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;transition:margin-bottom .28s cubic-bezier(.2,.85,.25,1)}
+.collapsible > h3 .more{margin-left:auto}
+.collapsible > h3 .c-chev{margin-left:9px;color:var(--txt3);font-size:11px;transition:transform .28s cubic-bezier(.2,.85,.25,1)}
+.collapsible.collapsed > h3{margin-bottom:0}
+.collapsible.collapsed > h3 .c-chev{transform:rotate(-90deg)}
+.collapsible > .c-body{display:grid;grid-template-rows:1fr;transition:grid-template-rows .28s cubic-bezier(.2,.85,.25,1),opacity .2s ease}
+.collapsible > .c-body > *{min-height:0;overflow:hidden}
+.collapsible.collapsed > .c-body{grid-template-rows:0fr;opacity:0}
+@media (prefers-reduced-motion:reduce){
+  .collapsible > h3,.collapsible > h3 .c-chev,.collapsible > .c-body{transition:none}
+}
 
 /* ===== Daily budget bar ===== */
 .daily-bar{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,var(--s3),var(--s2));border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:13px}
@@ -548,7 +565,10 @@ input[type="date"]::-webkit-calendar-picker-indicator,input[type="month"]::-webk
         <div class="app-bar-spacer"></div>
         <div id="syncBadge" class="sync-badge" style="display:none" onclick="openAccountSheet()" aria-label="Compte & synchronisation"></div>
         <h1 class="app-title" id="appTitle"><i class="fa-solid fa-chart-pie"></i><span>Tableau de bord</span></h1>
-        <button class="action-btn" id="appAction" aria-label="Action"><i class="fa-solid fa-ellipsis"></i></button>
+        <div class="app-bar-actions">
+          <button class="action-btn ghost" id="hideAmtBtn" type="button" aria-pressed="false" aria-label="Masquer les montants" title="Masquer les montants" onclick="toggleHideAmounts()"><i class="fa-solid fa-eye"></i></button>
+          <button class="action-btn" id="appAction" aria-label="Action"><i class="fa-solid fa-ellipsis"></i></button>
+        </div>
       </div>
       <div class="month-sel">
         <button id="prevMonth" aria-label="Mois précédent"><i class="fa-solid fa-chevron-left"></i></button>
@@ -677,7 +697,13 @@ function convert(amt,from,to){ return num(amt)*rateOf(from)/rateOf(to); }
 function acctCur(){ return (S&&S.accountsCurrency)||'HTG'; }
 function savCur(){ return (S&&S.savingsCurrency)||'USD'; }
 function baseCur(){ return acctCur(); }
-const fmtCurIn=(code,n)=>{ const d=curDef(code), str=new Intl.NumberFormat('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0); return d.pre?(d.sym+str):(str+' '+d.sym); };
+/* ===== Mode discretion : masque tous les montants affiches (l'appareil s'en souvient) ===== */
+const HIDE_KEY='budget_hide_amounts';
+const AMT_MASK='••••';
+let hideAmounts = localStorage.getItem(HIDE_KEY)==='1';
+/* Montant masque, en gardant le symbole de la devise pour ne pas casser la mise en page. */
+const maskedAmt = code => { const d=curDef(code); return d.pre?(d.sym+AMT_MASK):(AMT_MASK+' '+d.sym); };
+const fmtCurIn=(code,n)=>{ if(hideAmounts) return maskedAmt(code); const d=curDef(code), str=new Intl.NumberFormat('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0); return d.pre?(d.sym+str):(str+' '+d.sym); };
 /* fmt() = formatage en devise des comptes. fmtS() = devise d'epargne. */
 const fmt = n => fmtCurIn(acctCur(), n);
 const fmtS = n => fmtCurIn(savCur(), n);
@@ -890,7 +916,20 @@ function accountBalancesCard(){
     const ic=COMPTES[c], v=num(bal[c]);
     return `<div class="bal-item"><div class="bal-top"><div class="ai"><i class="fa-solid fa-${ic}"></i></div><span class="an">${c}</span></div><div class="bal-amt" style="color:${v<0?'var(--bad)':'var(--accent-lt)'}">${fmt(v)}</div></div>`;
   }).join('');
-  return `<div class="card card-span"><h3><i class="fa-solid fa-wallet"></i>Soldes des comptes<span class="more">Total ${fmt(totalNet())}</span></h3><div class="bal-grid">${rows}</div></div>`;
+  const open=!balancesCollapsed();
+  return `<div class="card card-span collapsible${open?'':' collapsed'}" id="balCard">
+    <h3 role="button" tabindex="0" aria-expanded="${open}" aria-controls="balBody" onclick="toggleBalances()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleBalances()}"><i class="fa-solid fa-wallet"></i>Soldes des comptes<span class="more">Total ${fmt(totalNet())}</span><i class="fa-solid fa-chevron-down c-chev"></i></h3>
+    <div class="c-body" id="balBody"><div class="bal-grid">${rows}</div></div>
+  </div>`;
+}
+/* Etat plie/deplie de la carte des soldes (preference locale a l'appareil). */
+const BAL_KEY='budget_bal_collapsed';
+function balancesCollapsed(){ return localStorage.getItem(BAL_KEY)==='1'; }
+function toggleBalances(){
+  const card=$('#balCard'); if(!card) return;
+  const collapsed=card.classList.toggle('collapsed');
+  localStorage.setItem(BAL_KEY, collapsed?'1':'0');
+  const h=card.querySelector('h3'); if(h) h.setAttribute('aria-expanded', collapsed?'false':'true');
 }
 /* Contribution mensuelle exprimee en devise d'epargne (USD). */
 function epargneContribSav(e){
@@ -1169,7 +1208,7 @@ function calendarCard(){
     const ds=`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`, sp=dailySpend(ds);
     const cls = sp<=0?'':(db>0&&sp>db?'over':'under');
     const isToday = ds===today?'today':'', fut = ds>today?'future':'';
-    cells.push(`<div class="cal-cell ${cls} ${isToday} ${fut}" onclick="dayDetail('${ds}')"><span>${d.getDate()}</span>${sp>0?`<span class="amt">${Math.round(sp)}</span>`:''}</div>`);
+    cells.push(`<div class="cal-cell ${cls} ${isToday} ${fut}" onclick="dayDetail('${ds}')"><span>${d.getDate()}</span>${sp>0?`<span class="amt">${hideAmounts?'•••':Math.round(sp)}</span>`:''}</div>`);
   }
   const titre = periodMode()==='calendar' ? 'Calendrier du mois' : 'Calendrier de la période';
   return `<div class="card cal-card">
@@ -1381,6 +1420,7 @@ function currencyOptions(selected,withName){
 function curDef(code){ return CUR[code]||CUR.EUR; }
 function sym(code){ const d=curDef(code); return d.sym; }
 function fmtCur(val,code){
+  if(hideAmounts) return maskedAmt(code);
   const d=curDef(code), n=new Intl.NumberFormat('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(val||0);
   return d.pre ? (d.sym+n) : (n+' '+d.sym);
 }
@@ -2183,7 +2223,7 @@ function renderDashCharts(){
 function lineOpts(legend){
   return {responsive:true,maintainAspectRatio:false,
     plugins:{legend:{display:legend,position:'bottom',labels:{boxWidth:10,boxHeight:10,padding:12,font:{size:11}}},tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmt(c.raw)}`}}},
-    scales:{x:{grid:{display:false}},y:{grid:{color:'rgba(212,165,116,.06)'},ticks:{callback:v=>v>=1000?(v/1000)+'k':v}}},
+    scales:{x:{grid:{display:false}},y:{grid:{color:'rgba(212,165,116,.06)'},ticks:{callback:v=>hideAmounts?'':(v>=1000?(v/1000)+'k':v)}}},
     animation:{duration:700}};
 }
 function renderGraphCharts(){
@@ -2243,6 +2283,23 @@ function setAppBar(){
   if(c.action==='more'){ ab.innerHTML='<i class="fa-solid fa-ellipsis"></i>'; ab.className='action-btn'; ab.style.pointerEvents='auto'; if(sp) sp.style.display=''; }
   else if(c.action){ ab.innerHTML='<i class="fa-solid fa-plus"></i>'; ab.className='action-btn primary'; ab.style.pointerEvents='auto'; if(sp) sp.style.display=''; }
   else { ab.innerHTML=''; ab.className=''; ab.style.display='none'; ab.style.pointerEvents='none'; if(sp) sp.style.display='none'; }
+}
+/* Bouton oeil : reflete l'etat du mode discretion. */
+function syncHideBtn(){
+  const b=$('#hideAmtBtn'); if(!b) return;
+  b.innerHTML=`<i class="fa-solid fa-eye${hideAmounts?'-slash':''}"></i>`;
+  b.className='action-btn ghost'+(hideAmounts?' on':'');
+  b.setAttribute('aria-pressed',hideAmounts?'true':'false');
+  const lbl=hideAmounts?'Afficher les montants':'Masquer les montants';
+  b.setAttribute('aria-label',lbl); b.setAttribute('title',lbl);
+}
+/* Masque / affiche tous les montants de l'app (preference locale a l'appareil). */
+function toggleHideAmounts(){
+  hideAmounts=!hideAmounts;
+  localStorage.setItem(HIDE_KEY, hideAmounts?'1':'0');
+  syncHideBtn();
+  renderAll();
+  toast(hideAmounts?'Montants masqués':'Montants affichés','info');
 }
 function switchTab(t){
   currentTab=t;
@@ -3004,6 +3061,7 @@ function init(){
   S=load();
   if(!S){ S=initData(); save(); }
   migrateState();
+  syncHideBtn();
   // Ouvrir sur la période qui contient aujourd'hui (en mode revenu, ce n'est pas forcément le mois calendaire).
   S.currentMonth=currentPeriodKey();
   // Reconduction automatique des récurrents pour la période courante (une seule fois par période).
